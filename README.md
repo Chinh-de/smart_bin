@@ -9,4 +9,4 @@ Thùng rác phân loại rác thông minh áp dụng Raspberry Pi 4: camera nh�
 | [smartbin_pi/](smartbin_pi/) | Ứng dụng trên Raspberry Pi + web server — hướng dẫn cài đặt trong [README](smartbin_pi/README.md) |
 | [smart_pin_demo_model/](smart_pin_demo_model/) | Demo trên laptop: webcam/ảnh → phân loại → đọc to hành động bằng tiếng Việt |
 
-Model (`model_int8.tflite`, `labels.json`) không nằm trong repo: tải từ output notebook Kaggle rồi chép vào `Model_training/models/` (demo laptop) và `smartbin_pi/models/` (Pi).
+Model đã huấn luyện (`model_int8.tflite`, `labels.json`) nằm trong [Model_training/models/](Model_training/models/); demo laptop dùng trực tiếp, còn trên Pi thì chép sang `smartbin_pi/models/`.

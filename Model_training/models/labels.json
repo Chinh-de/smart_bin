@@ -1,0 +1,17 @@
+{
+  "classes": [
+    "battery",
+    "biological",
+    "cardboard",
+    "clothes",
+    "glass",
+    "metal",
+    "paper",
+    "plastic",
+    "shoes",
+    "trash"
+  ],
+  "img_size": 224,
+  "input": "RGB float32 0..255, shape (1,224,224,3)",
+  "int8_mode": "dynamic-range"
+}

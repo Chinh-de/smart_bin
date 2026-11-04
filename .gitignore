@@ -13,10 +13,8 @@ smartbin_pi/calib.jpg
 smartbin_pi/server/smartbin.db
 smartbin_pi/server/uploads/
 
-# model tải từ Kaggle (không đưa lên git)
-*.tflite
+# model: bản TFLite trong Model_training/models/ được commit (nhẹ); bản .keras thì không
 *.keras
-Model_training/models/
 smartbin_pi/models/*
 !smartbin_pi/models/.gitkeep
 
