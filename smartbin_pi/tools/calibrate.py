@@ -35,10 +35,15 @@ def main():
             if k == "q":
                 break
             elif k in ("c", "t") and arg:
-                (act.set_chute if k == "c" else act.set_tray)(float(arg))
+                try:
+                    angle = float(arg)
+                except ValueError:
+                    print("góc phải là số, vd: c 90")
+                    continue
+                (act.set_chute if k == "c" else act.set_tray)(angle)
                 time.sleep(0.6)
                 act.release_servos()
-            elif k == "b" and arg and int(arg) in bins:
+            elif k == "b" and arg and arg.isdigit() and int(arg) in bins:
                 b = bins[int(arg)]
                 act.set_chute(b["angle"])
                 time.sleep(0.6)

@@ -5,6 +5,7 @@ Biến môi trường: SMARTBIN_API_KEY (mặc định "change-me", phải khớ
 """
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +18,7 @@ UPLOADS = BASE / "uploads"
 DB_PATH = BASE / "smartbin.db"
 API_KEY = os.environ.get("SMARTBIN_API_KEY", "change-me")
 OFFLINE_AFTER_S = 90          # 3 nhịp heartbeat
+TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
@@ -58,10 +60,13 @@ def api_add_event():
     try:
         m = json.loads(request.form["meta"])
         event_id, device_id, ts = m["event_id"], m["device_id"], m["timestamp"]
-    except (KeyError, ValueError):
+    except (KeyError, ValueError, TypeError):
         return jsonify(error="thiếu hoặc sai trường meta"), 400
-    if not event_id.isalnum():
+    # event_id và ts đi vào đường dẫn file nên phải kiểm tra chặt (chống ghi ra ngoài uploads/)
+    if not (isinstance(event_id, str) and event_id.isalnum() and isinstance(device_id, str)):
         return jsonify(error="event_id không hợp lệ"), 400
+    if not (isinstance(ts, str) and TS_RE.match(ts)):
+        return jsonify(error="timestamp không hợp lệ"), 400
 
     con = get_db()
     if con.execute("SELECT 1 FROM events WHERE event_id = ?", (event_id,)).fetchone():
@@ -119,7 +124,7 @@ def query_events(limit=50, bin_id=None, cls=None, date=None, result=None):
 
 def filters_from_request():
     a = request.args
-    return dict(limit=min(a.get("limit", 100, type=int), 1000), bin_id=a.get("bin", type=int),
+    return dict(limit=max(1, min(a.get("limit", 100, type=int), 1000)), bin_id=a.get("bin", type=int),
                 cls=a.get("class") or None, date=a.get("date") or None, result=a.get("result") or None)
 
 

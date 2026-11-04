@@ -41,11 +41,24 @@ class Uploader:
         return len(list(self.queue.glob("*.json")))
 
     def _post(self, item):
-        data = json.loads(item.read_text(encoding="utf-8"))
-        with open(data["image"], "rb") as img:
+        try:
+            data = json.loads(item.read_text(encoding="utf-8"))
+            meta, image = data["meta"], data.get("image")
+        except (ValueError, KeyError, TypeError):
+            # file hỏng: nếu cứ thử lại sẽ chặn mọi sự kiện phía sau
+            log.error("Sự kiện hỏng %s -> failed/", item.name)
+            shutil.move(str(item), self.failed / item.name)
+            return True
+        img = open(image, "rb") if image and os.path.exists(image) else None
+        if img is None:
+            log.warning("Không thấy ảnh của %s, gửi sự kiện không kèm ảnh", item.name)
+        try:
             r = requests.post(f"{self.url}/api/events", headers=self.headers, timeout=10,
-                              data={"meta": json.dumps(data["meta"], ensure_ascii=False)},
-                              files={"image": ("image.jpg", img, "image/jpeg")})
+                              data={"meta": json.dumps(meta, ensure_ascii=False)},
+                              files={"image": ("image.jpg", img, "image/jpeg")} if img else None)
+        finally:
+            if img:
+                img.close()
         if r.ok:
             return True
         if 400 <= r.status_code < 500:
@@ -67,7 +80,7 @@ class Uploader:
                 if self._post(items[0]):
                     items[0].unlink(missing_ok=True)
                 fails = 0
-            except (requests.RequestException, OSError) as e:
+            except Exception as e:          # luồng gửi không được chết vì bất kỳ lỗi nào
                 wait = BACKOFF_S[min(fails, len(BACKOFF_S) - 1)]
                 fails += 1
                 log.warning("Gửi thất bại (%s), còn %d sự kiện chờ, thử lại sau %ds", e, len(items), wait)

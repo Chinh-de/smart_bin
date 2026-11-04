@@ -72,6 +72,10 @@ class Controller:
             except Exception:
                 log.exception("Lỗi khi xử lý vật")
                 self._error_until_clear()
+                try:
+                    self._rest()                # đưa khay/máng về vị trí nghỉ, không để kẹt giữa chừng
+                except Exception:
+                    log.exception("Không đưa được servo về vị trí nghỉ")
             self._set("COOLDOWN")
             self._sleep_ms("cooldown_ms")
 
@@ -100,7 +104,11 @@ class Controller:
             result = self._reject(d)
 
         self._set("LOG")
-        self._log_event(d, result, frames[len(frames) // 2], distance, inf_ms, (time.time() - t0) * 1000)
+        try:
+            self._log_event(d, result, frames[len(frames) // 2], distance, inf_ms, (time.time() - t0) * 1000)
+        except Exception:
+            # vật đã xử lý xong; lỗi ghi log (đầy thẻ nhớ...) không phải lỗi cơ khí nên không bật báo lỗi
+            log.exception("Không ghi được sự kiện")
         self._rest()
 
     def _drop(self, d):

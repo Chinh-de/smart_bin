@@ -5,6 +5,8 @@
 """
 import argparse
 import logging
+import logging.handlers
+import signal
 import sys
 from pathlib import Path
 
@@ -20,8 +22,14 @@ def setup_logging(data_dir, verbose):
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
         handlers=[logging.StreamHandler(sys.stdout),
-                  logging.FileHandler(data_dir / "logs" / "app.log", encoding="utf-8")],
+                  # xoay vòng: app.log không phình mãi trên thẻ nhớ
+                  logging.handlers.RotatingFileHandler(data_dir / "logs" / "app.log", maxBytes=2_000_000,
+                                                       backupCount=3, encoding="utf-8")],
     )
+
+
+def _on_sigterm(*_):
+    raise KeyboardInterrupt        # systemctl stop gửi SIGTERM: đi qua khối finally để tắt đèn, nhả servo
 
 
 def main():
@@ -73,6 +81,7 @@ def main():
         Uploader(app["server_url"], app["api_key"], app["device_id"], ROOT / "queue", app["heartbeat_s"])
 
     ctl = Controller(app, hw, sensor, camera, clf, decider, act, uploader, ROOT)
+    signal.signal(signal.SIGTERM, _on_sigterm)
     try:
         ctl.run()
     except KeyboardInterrupt:
@@ -80,7 +89,10 @@ def main():
     finally:
         for x in (uploader, camera, act, sensor):
             if x:
-                x.close()
+                try:
+                    x.close()
+                except Exception:       # một thiết bị lỗi khi đóng không được làm bỏ qua các thiết bị còn lại
+                    log.exception("Lỗi khi đóng %s", type(x).__name__)
 
 
 if __name__ == "__main__":
