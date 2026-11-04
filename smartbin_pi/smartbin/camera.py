@@ -35,7 +35,8 @@ class UsbCamera:
 
     def _wait_new(self, after_seq, timeout=2.0):
         with self._cond:
-            if not self._cond.wait_for(lambda: self._seq > after_seq, timeout=timeout):
+            # phải có khung thật: lúc khởi động _seq = 0 nhưng _frame vẫn là None
+            if not self._cond.wait_for(lambda: self._frame is not None and self._seq > after_seq, timeout=timeout):
                 return None
             return self._seq, self._frame.copy()
 
