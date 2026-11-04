@@ -1,6 +1,6 @@
 {
   "device_id": "smartbin-01",
-  "server_url": "http://127.0.0.1:5000",
+  "server_url": "http://10.77.149.214:5000",
   "api_key": "change-me",
 
   "model": "models/model_int8.tflite",

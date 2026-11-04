@@ -87,16 +87,26 @@ class Uploader:
                 self._stop.wait(wait)
 
     def _heartbeat_loop(self):
-        while not self._stop.wait(self.heartbeat_s):
+        ok_before = None                    # chỉ log khi trạng thái đổi, tránh spam mỗi 30 s
+        while True:                         # gửi ngay khi khởi động rồi mới chờ heartbeat_s
             try:
-                requests.post(f"{self.url}/api/heartbeat", headers=self.headers, timeout=5, json={
+                r = requests.post(f"{self.url}/api/heartbeat", headers=self.headers, timeout=5, json={
                     "device_id": self.device_id,
                     "uptime_s": int(time.time() - self.started),
                     "cpu_temp_c": _cpu_temp(),
                     "pending": self.pending(),
                 })
-            except requests.RequestException:
-                pass
+                ok, why = r.ok, f"HTTP {r.status_code}" + (" (sai api_key?)" if r.status_code == 401 else "")
+            except requests.RequestException as e:
+                ok, why = False, type(e).__name__
+            if ok != ok_before:
+                if ok:
+                    log.info("Đã kết nối server %s", self.url)
+                else:
+                    log.warning("Không gửi được heartbeat tới %s: %s", self.url, why)
+                ok_before = ok
+            if self._stop.wait(self.heartbeat_s):
+                return
 
     def close(self):
         self._stop.set()
