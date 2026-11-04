@@ -8,6 +8,7 @@ import logging
 import logging.handlers
 import signal
 import sys
+import threading
 from pathlib import Path
 
 from smartbin import ROOT, load_config, load_json
@@ -32,11 +33,22 @@ def _on_sigterm(*_):
     raise KeyboardInterrupt        # systemctl stop gửi SIGTERM: đi qua khối finally để tắt đèn, nhả servo
 
 
+def _keyboard_trigger(event):
+    print(">>> Nhấn Enter để chụp + nhận diện ngay (như khi siêu âm phát hiện vật)")
+    while True:
+        try:
+            input()
+        except EOFError:
+            return
+        event.set()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mock", action="store_true", help="giả lập cảm biến/servo/camera")
     ap.add_argument("--images", help="(mock) thư mục ảnh thay cho camera")
     ap.add_argument("--no-upload", action="store_true", help="không gửi lên web server")
+    ap.add_argument("--keyboard", action="store_true", help="nhấn Enter để kích hoạt nhận diện (test, ngoài siêu âm)")
     ap.add_argument("--config", default="config")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -81,6 +93,8 @@ def main():
         Uploader(app["server_url"], app["api_key"], app["device_id"], ROOT / "queue", app["heartbeat_s"])
 
     ctl = Controller(app, hw, sensor, camera, clf, decider, act, uploader, ROOT)
+    if args.keyboard and not args.mock:   # --mock đã dùng Enter để đặt/lấy vật
+        threading.Thread(target=_keyboard_trigger, args=(ctl.manual,), daemon=True, name="keys").start()
     signal.signal(signal.SIGTERM, _on_sigterm)
     try:
         ctl.run()

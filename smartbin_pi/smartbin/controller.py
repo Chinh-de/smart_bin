@@ -2,6 +2,7 @@
 import csv
 import json
 import logging
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -25,6 +26,7 @@ class Controller:
         self.csv_path.parent.mkdir(parents=True, exist_ok=True)
         self.model_name = Path(app_cfg["model"]).name
         self.state = "IDLE"
+        self.manual = threading.Event()   # đặt bởi phím bấm (main.py --keyboard): chạy nhận diện như khi siêu âm phát hiện vật
 
     # ---------- tiện ích ----------
     def _set(self, state):
@@ -54,6 +56,22 @@ class Controller:
                 return False
             self._sleep_ms("poll_ms")
 
+    def _wait_trigger(self):
+        """Chờ vật nằm yên stable_ms trước siêu âm, hoặc có phím bấm."""
+        hold, since = self.hw["stable_ms"] / 1000, None
+        while True:
+            if self.manual.is_set():
+                self.manual.clear()
+                log.info("Kích hoạt bằng phím bấm")
+                return
+            if self._present():
+                since = since or time.time()
+                if time.time() - since >= hold:
+                    return
+            else:
+                since = None
+            self._sleep_ms("poll_ms")
+
     def _rest(self):
         self.act.set_chute(self.hw["chute_rest_angle"])
         self.act.set_tray(self.hw["tray_rest_angle"])
@@ -66,7 +84,8 @@ class Controller:
         log.info("Sẵn sàng. Ngưỡng phát hiện < %s cm", self.hw["trigger_cm"])
         while True:
             self._set("IDLE")
-            self._wait(self._present, self.hw["stable_ms"] / 1000)
+            self.manual.clear()          # phím bấm lúc đang xử lý bị bỏ, không dồn thành lượt sau
+            self._wait_trigger()
             try:
                 self.process_one()
             except Exception:
