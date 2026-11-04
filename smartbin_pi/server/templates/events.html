@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import result_tag %}
+{% block title %}Lịch sử · Thùng rác thông minh{% endblock %}
+{% block body %}
+<h2>Lịch sử</h2>
+<form class="filters" method="get">
+  <select name="bin">
+    <option value="">Mọi thùng</option>
+    {% for b in bins %}<option value="{{ b.bin_id }}" {{ 'selected' if f.bin_id == b.bin_id }}>{{ b.bin_name }}</option>{% endfor %}
+  </select>
+  <select name="result">
+    <option value="">Mọi kết quả</option>
+    {% for r, label in [('BIN', 'Đã thả'), ('REJECT', 'Từ chối'), ('ERROR', 'Lỗi')] %}
+    <option value="{{ r }}" {{ 'selected' if f.result == r }}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="class">
+    <option value="">Mọi lớp</option>
+    {% for c in classes %}<option {{ 'selected' if f.cls == c }}>{{ c }}</option>{% endfor %}
+  </select>
+  <input type="date" name="date" value="{{ f.date or '' }}">
+  <button>Lọc</button> <a href="/events">Xoá lọc</a>
+</form>
+<div class="wrap">
+<table>
+  <tr><th>Ảnh</th><th>Thời gian</th><th>Kết quả</th><th>Lớp</th><th>Top-3</th><th>Suy luận</th></tr>
+  {% for e in events %}
+  <tr>
+    <td>{% if e.image_path %}<a href="/events/{{ e.event_id }}"><img src="/uploads/{{ e.image_path }}" alt="" loading="lazy"></a>{% endif %}</td>
+    <td><a href="/events/{{ e.event_id }}">{{ e.ts[:10] }} {{ e.ts | hm }}</a></td>
+    <td>{{ result_tag(e) }}{{ ' ⚠' if e.uncertain }}</td>
+    <td>{{ e.top_class }} {{ e.top_prob | pct }}</td>
+    <td class="muted">{% for c, p in e.top3 or [] %}{{ c }} {{ p | pct }}{{ ', ' if not loop.last }}{% endfor %}</td>
+    <td class="muted">{{ e.inference_ms }} ms</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">Không có sự kiện.</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

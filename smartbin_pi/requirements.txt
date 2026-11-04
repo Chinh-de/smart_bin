@@ -1,0 +1,6 @@
+# Cài trong venv tạo bằng --system-site-packages (gpiozero, lgpio lấy từ apt), xem README.md
+numpy
+opencv-python-headless
+ai-edge-litert
+requests
+flask

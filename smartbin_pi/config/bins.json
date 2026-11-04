@@ -1,0 +1,12 @@
+{
+  "bins": [
+    {"id": 1, "name": "Rác tái chế",   "angle": 0,   "classes": ["plastic", "metal", "paper", "cardboard"]},
+    {"id": 2, "name": "Rác thực phẩm", "angle": 90,  "classes": ["biological"]},
+    {"id": 3, "name": "Rác thải khác", "angle": 180, "classes": ["trash", "clothes", "shoes", "glass"]}
+  ],
+  "reject": [
+    {"class": "battery", "threshold": 0.4, "message": "Pin là rác nguy hại, vui lòng bỏ vào điểm thu gom pin"}
+  ],
+  "confident_threshold": 0.6,
+  "uncertain_bin": 3
+}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_macros.html" import result_tag %}
+{% block title %}Sự kiện · Thùng rác thông minh{% endblock %}
+{% block body %}
+<p><a href="/events">← Lịch sử</a></p>
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+  <div class="card">
+    {% if e.image_path %}<img src="/uploads/{{ e.image_path }}" alt="" style="width:100%; border-radius:6px;">{% endif %}
+  </div>
+  <div class="card">
+    <p>{{ result_tag(e) }} {{ '⚠ không chắc chắn → thùng mặc định' if e.uncertain }}</p>
+    {% if e.message %}<p><b>{{ e.message }}</b></p>{% endif %}
+    <h2>Dự đoán</h2>
+    {% for c, p in e.top3 or [] %}
+      <div class="bar"><span>{{ c }}</span><i style="width: {{ (p * 60) | round(1) }}%"></i><span>{{ p | pct }}</span></div>
+    {% endfor %}
+    {% if e.bin_probs %}
+    <h2>Xác suất theo thùng</h2>
+    {% for k, p in e.bin_probs.items() %}
+      <div class="bar"><span>Thùng {{ k }}</span><i style="width: {{ (p * 60) | round(1) }}%; background: var(--b{{ k }}, var(--b3))"></i><span>{{ p | pct }}</span></div>
+    {% endfor %}
+    {% endif %}
+    <h2>Thông tin</h2>
+    <table>
+      <tr><td>Thời gian</td><td>{{ e.ts }}</td></tr>
+      <tr><td>Thiết bị</td><td>{{ e.device_id }}</td></tr>
+      <tr><td>Khoảng cách</td><td>{{ e.distance_cm }} cm</td></tr>
+      <tr><td>Suy luận / tổng</td><td>{{ e.inference_ms }} ms / {{ e.total_ms }} ms</td></tr>
+      <tr><td>Model</td><td>{{ e.model }}</td></tr>
+      <tr><td>Mã sự kiện</td><td class="muted">{{ e.event_id }}</td></tr>
+    </table>
+  </div>
+</div>
+{% endblock %}

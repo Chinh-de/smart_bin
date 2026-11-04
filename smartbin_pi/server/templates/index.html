@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import result_tag, bars %}
+{% block head %}<meta http-equiv="refresh" content="5">{% endblock %}
+{% block body %}
+<h2>Thiết bị</h2>
+<div class="grid">
+  {% for d in devices %}
+  <div class="card">
+    <div><span class="dot {{ 'on-dot' if d.online else 'off-dot' }}"></span><b>{{ d.id }}</b></div>
+    <div class="muted">{{ 'Online' if d.online else 'Offline' }} · lần cuối {{ d.last_seen }}</div>
+    {% if d.info %}
+    <div class="muted">CPU {{ d.info.cpu_temp_c or '?' }}°C · chờ gửi {{ d.info.pending }} · chạy {{ (d.info.uptime_s // 60) }} phút</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="muted">Chưa có thiết bị nào kết nối.</p>
+  {% endfor %}
+</div>
+
+<h2>Hôm nay ({{ today }})</h2>
+<div class="grid">
+  <div class="card"><div class="muted">Tổng số lần</div><div class="big">{{ stats.total }}</div></div>
+  {% for b in stats.by_bin %}
+  <div class="card"><div class="muted">{{ b.k }}</div><div class="big">{{ b.n }}</div></div>
+  {% endfor %}
+  <div class="card"><div class="muted">Suy luận TB</div><div class="big">{{ stats.avg_inference_ms }}<span class="muted"> ms</span></div></div>
+</div>
+
+<h2>Mới nhất</h2>
+<div class="events">
+  {% for e in events %}
+  <a class="ev" href="/events/{{ e.event_id }}">
+    {% if e.image_path %}<img src="/uploads/{{ e.image_path }}" alt="" loading="lazy">{% endif %}
+    <div>{{ result_tag(e) }} <b>{{ e.top_class }}</b> {{ e.top_prob | pct }}<br>
+      <span class="muted">{{ e.ts | hm }}{{ ' · không chắc' if e.uncertain }}</span></div>
+  </a>
+  {% else %}
+  <p class="muted">Chưa có sự kiện nào.</p>
+  {% endfor %}
+</div>
+{% endblock %}

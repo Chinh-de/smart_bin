@@ -1,0 +1,19 @@
+{% macro result_tag(e) -%}
+  {%- if e.result == 'BIN' -%}
+    <span class="tag t-{{ e.bin_id }}">{{ e.bin_name }}</span>
+  {%- elif e.result == 'REJECT' -%}
+    <span class="tag t-REJECT">Từ chối</span>
+  {%- else -%}
+    <span class="tag t-ERROR">Lỗi</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro bars(rows, color='var(--b1)') -%}
+  {% set mx = (rows | map(attribute='n') | max) if rows else 1 %}
+  {% for r in rows %}
+    <div class="bar"><span>{{ r.k if r.k is not none else '—' }}</span>
+      <i style="width: {{ (r.n / mx * 60) | round(1) }}%; background: {{ color }}"></i><span>{{ r.n }}</span></div>
+  {% else %}
+    <p class="muted">Chưa có dữ liệu.</p>
+  {% endfor %}
+{%- endmacro %}

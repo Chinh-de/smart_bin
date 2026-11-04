@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import bars %}
+{% block title %}Thống kê · Thùng rác thông minh{% endblock %}
+{% block body %}
+<h2>Thống kê {{ ('ngày ' ~ date) if date else '(toàn bộ)' }}</h2>
+<form class="filters" method="get">
+  <input type="date" name="date" value="{{ date }}"><button>Xem</button> <a href="/stats">Toàn bộ</a>
+</form>
+<div class="grid">
+  <div class="card"><div class="muted">Tổng số lần</div><div class="big">{{ s.total }}</div></div>
+  <div class="card"><div class="muted">Từ chối (pin)</div><div class="big">{{ s.reject }}</div></div>
+  <div class="card"><div class="muted">Không chắc chắn</div><div class="big">{{ s.uncertain }}</div></div>
+  <div class="card"><div class="muted">Lỗi (kẹt rác)</div><div class="big">{{ s.error }}</div></div>
+  <div class="card"><div class="muted">Suy luận TB</div><div class="big">{{ s.avg_inference_ms }}<span class="muted"> ms</span></div></div>
+  <div class="card"><div class="muted">Tổng thời gian TB</div><div class="big">{{ (s.avg_total_ms / 1000) | round(1) }}<span class="muted"> s</span></div></div>
+</div>
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top:12px;">
+  <div class="card"><h2>Theo thùng</h2>{{ bars(s.by_bin, 'var(--b2)') }}</div>
+  <div class="card"><h2>Theo lớp</h2>{{ bars(s.by_class) }}</div>
+  <div class="card"><h2>Theo giờ</h2>{{ bars(s.by_hour | sort(attribute='k'), 'var(--b3)') }}</div>
+  <div class="card"><h2>14 ngày gần nhất</h2>{{ bars(s.by_day, 'var(--err)') }}</div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{
+  "pins": {
+    "trig": 23,
+    "echo": 24,
+    "servo_chute": 12,
+    "servo_tray": 13,
+    "light": 27,
+    "led_ok": 5,
+    "led_err": 6,
+    "buzzer": 26
+  },
+  "servo_min_pulse_ms": 0.5,
+  "servo_max_pulse_ms": 2.5,
+
+  "chute_rest_angle": 90,
+  "tray_rest_angle": 0,
+  "tray_tilt_angle": 100,
+
+  "trigger_cm": 12,
+  "clear_cm": 15,
+
+  "poll_ms": 100,
+  "stable_ms": 500,
+  "settle_ms": 500,
+  "light_warmup_ms": 200,
+  "route_ms": 600,
+  "drop_ms": 800,
+  "after_drop_ms": 400,
+  "cooldown_ms": 1500,
+  "reject_timeout_s": 60,
+  "error_clear_s": 3
+}
