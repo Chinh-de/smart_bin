@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Trực tiếp — Thùng rác thông minh{% endblock %}
+{% block body %}
+<h2>Video trực tiếp</h2>
+{% if not devices %}
+  <p class="muted">Chưa có thiết bị nào kết nối. Chạy <code>main.py</code> trên Pi (không dùng <code>--no-upload</code>) rồi tải lại trang.</p>
+{% endif %}
+<div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+{% for d in devices %}
+  <div class="card" data-id="{{ d.id }}">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <b>{{ d.id }}</b>
+      <span class="muted"><span class="dot off-dot" data-dot></span><span data-label>Đang nối…</span></span>
+    </div>
+    <img data-cam alt="video {{ d.id }}" style="width:100%; aspect-ratio:4/3; object-fit:contain; background:#111; border-radius:6px; display:block;">
+    <button data-toggle style="margin-top:8px; padding:6px 10px;">Tạm dừng</button>
+    <div class="muted" style="margin-top:6px;">Thiết bị chỉ gửi hình khi có người xem. Hình lúc không chụp thì đèn chiếu đang tắt nên có thể tối.</div>
+  </div>
+{% endfor %}
+</div>
+<script>
+document.querySelectorAll("[data-id]").forEach(card => {
+  const id = card.dataset.id, img = card.querySelector("[data-cam]"), btn = card.querySelector("[data-toggle]");
+  const dot = card.querySelector("[data-dot]"), label = card.querySelector("[data-label]");
+  let playing = true, retry = null;
+  const url = () => `/stream/${encodeURIComponent(id)}.mjpg?t=${Date.now()}`;
+  const start = () => { clearTimeout(retry); img.src = url(); };
+  img.onerror = () => { if (playing) retry = setTimeout(start, 3000); };   // server đóng luồng khi lâu không có hình: nối lại
+  btn.onclick = () => {
+    playing = !playing;
+    btn.textContent = playing ? "Tạm dừng" : "Phát";
+    if (playing) start(); else { clearTimeout(retry); img.removeAttribute("src"); }
+  };
+  start();
+  async function poll() {
+    try {
+      const s = (await (await fetch("/api/stream/state")).json())[id];
+      const live = !!(s && s.live) && playing;
+      dot.className = "dot " + (live ? "on-dot" : "off-dot");
+      label.textContent = !playing ? "Đã tạm dừng" : live ? "Đang phát" : "Chờ thiết bị gửi hình…";
+    } catch (e) { label.textContent = "Mất kết nối server"; }
+  }
+  poll(); setInterval(poll, 2000);
+});
+</script>
+{% endblock %}

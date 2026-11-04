@@ -6,10 +6,12 @@ Biến môi trường: SMARTBIN_API_KEY (mặc định "change-me", phải khớ
 import json
 import os
 import re
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, abort, g, jsonify, render_template, request, send_from_directory
+from flask import Flask, Response, abort, g, jsonify, render_template, request, send_from_directory
 
 import db
 
@@ -18,6 +20,10 @@ UPLOADS = BASE / "uploads"
 DB_PATH = BASE / "smartbin.db"
 API_KEY = os.environ.get("SMARTBIN_API_KEY", "change-me")
 OFFLINE_AFTER_S = 90          # 3 nhịp heartbeat
+SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+MAX_FRAME = 2 * 1024 * 1024
+MAX_STREAMS = 8
+STREAM_LIVE_S = 5             # quá ngần này giây không có khung mới thì coi là ngừng phát
 TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
 
 app = Flask(__name__)
@@ -167,6 +173,89 @@ def uploads(p):
     return send_from_directory(UPLOADS, p)
 
 
+# ---------------- video trực tiếp ----------------
+# Pi đẩy từng khung JPEG lên; server giữ khung mới nhất của mỗi thiết bị trong RAM
+# và phát lại cho trình duyệt dạng MJPEG. Không ghi đĩa.
+class Stream:
+    def __init__(self):
+        self.cond = threading.Condition()
+        self.frame, self.seq, self.ts, self.viewers = None, 0, 0.0, 0
+
+
+STREAMS, STREAMS_LOCK = {}, threading.Lock()
+
+
+def get_stream(device_id, create=False):
+    with STREAMS_LOCK:
+        s = STREAMS.get(device_id)
+        if s is None and create and len(STREAMS) < MAX_STREAMS:
+            s = STREAMS[device_id] = Stream()
+        return s
+
+
+@app.post("/api/stream/<device_id>/frame")
+def api_stream_frame(device_id):
+    require_key()
+    data = request.get_data(cache=False)
+    if not (SAFE_ID.match(device_id) and 2 < len(data) <= MAX_FRAME and data[:2] == b"\xff\xd8"):
+        return jsonify(error="khung hình không hợp lệ"), 400
+    s = get_stream(device_id, create=True)
+    if s is None:
+        return jsonify(error="quá nhiều luồng video"), 429
+    with s.cond:
+        s.frame, s.seq, s.ts = data, s.seq + 1, time.time()
+        s.cond.notify_all()
+        return jsonify(watch=s.viewers)        # Pi dùng số người xem để biết có nên tiếp tục gửi
+
+
+@app.get("/api/stream/<device_id>/want")
+def api_stream_want(device_id):
+    require_key()
+    s = get_stream(device_id)
+    return jsonify(watch=s.viewers if s else 0)
+
+
+@app.get("/api/stream/state")
+def api_stream_state():
+    with STREAMS_LOCK:
+        items = list(STREAMS.items())
+    return jsonify({d: {"live": s.ts > 0 and time.time() - s.ts < STREAM_LIVE_S, "viewers": s.viewers}
+                    for d, s in items})
+
+
+@app.get("/stream/<device_id>.mjpg")
+def stream_mjpg(device_id):
+    if not SAFE_ID.match(device_id) or not get_db().execute(
+            "SELECT 1 FROM devices WHERE device_id = ?", (device_id,)).fetchone():
+        abort(404)
+    s = get_stream(device_id, create=True)
+    if s is None:
+        abort(404)
+
+    def gen():
+        seq, last_new = 0, time.time()
+        with s.cond:
+            s.viewers += 1
+        try:
+            while time.time() - last_new < 30:      # 30 s không có hình: kết thúc, trang web sẽ tự nối lại
+                with s.cond:
+                    fresh = s.cond.wait_for(lambda: s.seq != seq, timeout=2)
+                    frame, seq = s.frame, s.seq
+                if fresh:
+                    last_new = time.time()
+                if frame is None:
+                    continue
+                # không có khung mới thì gửi lại khung cũ: làm "nhịp tim" để phát hiện trình duyệt đã đóng
+                yield (b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n" % len(frame)
+                       + frame + b"\r\n")
+        finally:
+            with s.cond:
+                s.viewers -= 1
+
+    return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=frame",
+                    headers={"Cache-Control": "no-store"})
+
+
 # ---------------- trang web ----------------
 def devices():
     out = []
@@ -201,6 +290,11 @@ def page_event(event_id):
     if not r:
         abort(404)
     return render_template("event.html", e=db.row_to_event(r))
+
+
+@app.get("/live")
+def page_live():
+    return render_template("live.html", devices=devices())
 
 
 @app.get("/stats")

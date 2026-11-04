@@ -102,6 +102,13 @@ def main():
     uploader = None if args.no_upload else \
         Uploader(app["server_url"], app["api_key"], app["device_id"], ROOT / "queue", app["heartbeat_s"])
 
+    streamer = None
+    sc = app.get("stream", {})
+    if uploader and sc.get("enabled", True) and hasattr(camera, "latest"):
+        from smartbin.streamer import Streamer
+        streamer = Streamer(app["server_url"], app["api_key"], app["device_id"], camera,
+                            sc.get("fps", 5), sc.get("width", 480), sc.get("quality", 70))
+
     ctl = Controller(app, hw, sensor, camera, clf, decider, act, uploader, ROOT)
     if (args.keyboard or args.bench) and not args.mock:   # --mock đã dùng Enter để đặt/lấy vật
         threading.Thread(target=_keyboard_trigger, args=(ctl.manual,), daemon=True, name="keys").start()
@@ -111,7 +118,7 @@ def main():
     except KeyboardInterrupt:
         log.info("Dừng.")
     finally:
-        for x in (uploader, camera, act, sensor):
+        for x in (streamer, uploader, camera, act, sensor):
             if x:
                 try:
                     x.close()

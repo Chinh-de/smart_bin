@@ -56,6 +56,8 @@ class MockCamera:
         self.files = itertools.cycle(files) if files else None
         if not files:
             log.warning("Không có --images: camera giả trả về ảnh xám")
+        self._cur, self._tick = np.full((480, 640, 3), 128, np.uint8), 0
+        cv2.putText(self._cur, "MOCK CAMERA", (180, 250), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2)
 
     def capture(self, n=5, interval_ms=0):
         if self.files is None:
@@ -63,7 +65,12 @@ class MockCamera:
         path = next(self.files)
         img = cv2.imdecode(np.fromfile(str(path), np.uint8), cv2.IMREAD_COLOR)   # đọc được đường dẫn tiếng Việt
         print(f">>> camera giả: {path.name}")
+        self._cur = img
         return [img] * n
+
+    def latest(self):
+        self._tick += 1
+        return self._tick, self._cur
 
     def close(self):
         pass

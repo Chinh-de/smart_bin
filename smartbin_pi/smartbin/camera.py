@@ -61,6 +61,11 @@ class UsbCamera:
                 return None
             return self._seq, self._frame.copy()
 
+    def latest(self):
+        """(seq, khung) mới nhất, không chờ. Khung không bị sửa sau khi gán nên không cần copy: người gọi không được ghi vào nó."""
+        with self._cond:
+            return None if self._frame is None else (self._seq, self._frame)
+
     def capture(self, n=5, interval_ms=80):
         """Chụp n khung MỚI (chụp sau thời điểm gọi hàm)."""
         with self._cond:

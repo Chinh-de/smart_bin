@@ -14,5 +14,7 @@
   "frame_interval_ms": 80,
 
   "save_image_width": 640,
-  "heartbeat_s": 30
+  "heartbeat_s": 30,
+
+  "stream": {"enabled": true, "fps": 5, "width": 480, "quality": 70}
 }
