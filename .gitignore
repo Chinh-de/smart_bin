@@ -13,9 +13,15 @@ smartbin_pi/calib.jpg
 smartbin_pi/server/smartbin.db
 smartbin_pi/server/uploads/
 
-# model tải từ Kaggle (chép tay vào smartbin_pi/models/)
+# model tải từ Kaggle (không đưa lên git)
+*.tflite
+*.keras
+Model_training/models/
 smartbin_pi/models/*
 !smartbin_pi/models/.gitkeep
+
+# demo laptop: giọng đọc tạo ra khi chạy
+smart_pin_demo_model/audio_cache/
 
 # OS / editor
 .DS_Store
