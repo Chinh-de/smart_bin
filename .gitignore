@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# dữ liệu sinh ra khi chạy trên Pi
+smartbin_pi/logs/
+smartbin_pi/captures/
+smartbin_pi/queue/
+smartbin_pi/calib.jpg
+smartbin_pi/server/smartbin.db
+smartbin_pi/server/uploads/
+
+# model tải từ Kaggle (chép tay vào smartbin_pi/models/)
+smartbin_pi/models/*
+!smartbin_pi/models/.gitkeep
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
