@@ -49,6 +49,8 @@ def main():
     ap.add_argument("--images", help="(mock) thư mục ảnh thay cho camera")
     ap.add_argument("--no-upload", action="store_true", help="không gửi lên web server")
     ap.add_argument("--keyboard", action="store_true", help="nhấn Enter để kích hoạt nhận diện (test, ngoài siêu âm)")
+    ap.add_argument("--bench", action="store_true",
+                    help="chỉ test nhận diện: webcam + model thật, KHÔNG cần siêu âm/servo/GPIO; nhấn Enter để chụp")
     ap.add_argument("--config", default="config")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -82,6 +84,14 @@ def main():
         camera = MockCamera(args.images)
         act = MockActuators(sensor)
         hw = {**hw, **{k: min(v, 300) for k, v in hw.items() if k.endswith("_ms")}}   # chạy nhanh hơn khi giả lập
+    elif args.bench:
+        from smartbin.camera import UsbCamera
+        from smartbin.mock import MockActuators, NullSensor
+        sensor = NullSensor()
+        camera = UsbCamera(app["camera_index"], app["camera_width"], app["camera_height"])
+        act = MockActuators(sensor)       # servo/đèn/còi chỉ in ra màn hình
+        hw = {**hw, **{k: min(v, 300) for k, v in hw.items() if k.endswith("_ms")}}
+        log.warning("Chế độ --bench: không dùng siêu âm/servo, chỉ nhận diện bằng webcam")
     else:
         from smartbin.camera import UsbCamera
         from smartbin.hardware import Actuators, UltrasonicSensor
@@ -93,7 +103,7 @@ def main():
         Uploader(app["server_url"], app["api_key"], app["device_id"], ROOT / "queue", app["heartbeat_s"])
 
     ctl = Controller(app, hw, sensor, camera, clf, decider, act, uploader, ROOT)
-    if args.keyboard and not args.mock:   # --mock đã dùng Enter để đặt/lấy vật
+    if (args.keyboard or args.bench) and not args.mock:   # --mock đã dùng Enter để đặt/lấy vật
         threading.Thread(target=_keyboard_trigger, args=(ctl.manual,), daemon=True, name="keys").start()
     signal.signal(signal.SIGTERM, _on_sigterm)
     try:

@@ -37,6 +37,17 @@ class MockSensor:
         pass
 
 
+class NullSensor:
+    """Không có siêu âm (chế độ --bench): khay luôn trống, kích hoạt bằng phím."""
+    present = False
+
+    def distance_cm(self):
+        return 100.0
+
+    def close(self):
+        pass
+
+
 class MockCamera:
     def __init__(self, image_dir=None):
         files = sorted(p for p in Path(image_dir).rglob("*") if p.suffix.lower() in IMG_EXT) if image_dir else []

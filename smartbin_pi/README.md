@@ -103,6 +103,9 @@ Nhấn **Enter** = đặt / lấy vật trên khay; mỗi lần "chụp" lấy 1
 Trên Pi thật, thêm `--keyboard` để nhấn **Enter** chạy nhận diện ngay (ngoài siêu âm), tiện test khi chưa gắn hoặc chưa chỉnh cảm biến:
 `python main.py --keyboard --no-upload`. Enter bấm lúc đang xử lý sẽ bị bỏ, không dồn thành lượt sau.
 
+Chưa nối siêu âm/servo mà chỉ muốn thử nhận diện bằng webcam thật: `python main.py --bench --no-upload`
+(webcam + model thật; siêu âm, servo, đèn, còi được giả lập và in ra màn hình; nhấn **Enter** để chụp; không cần gpiozero).
+
 Chưa có model trong `models/` thì dùng bộ phân loại ngẫu nhiên (chỉ để thử luồng). Có model thì cần thêm `pip install ai-edge-litert` (hoặc `tensorflow`).
 
 ## 7. Dữ liệu tạo ra
