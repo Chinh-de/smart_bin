@@ -43,7 +43,6 @@
   <b>♻ Thùng rác thông minh</b>
   <a href="/" class="{{ 'on' if request.path == '/' }}">Tổng quan</a>
   <a href="/events" class="{{ 'on' if request.path.startswith('/events') }}">Lịch sử</a>
-  <a href="/live" class="{{ 'on' if request.path == '/live' }}">Trực tiếp</a>
   <a href="/stats" class="{{ 'on' if request.path == '/stats' }}">Thống kê</a>
 </header>
 <main>{% block body %}{% endblock %}</main>

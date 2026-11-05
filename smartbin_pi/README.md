@@ -107,9 +107,12 @@ Chưa nối siêu âm/servo mà chỉ muốn thử nhận diện bằng webcam t
 (webcam + model thật; siêu âm, servo, đèn, còi được giả lập và in ra màn hình; nhấn **Enter** để chụp; không cần gpiozero).
 
 
-**Video trực tiếp:** mở `http://<ip server>:5000/live`. Pi đẩy từng khung JPEG lên server (`smartbin/streamer.py`),
+**Video trực tiếp:** xem ngay ở trang chủ `http://<ip server>:5000/`. Pi đẩy từng khung JPEG lên server (`smartbin/streamer.py`),
 server phát lại dạng MJPEG. Pi chỉ mã hoá + gửi khi có người đang xem. Chỉnh trong `config/app.json`, mục `stream`
-(`enabled`, `fps`, `width`, `quality`). Không chạy khi dùng `--no-upload`. Trang `/live` chưa có đăng nhập, ai vào được server đều xem được.
+(`enabled`, `fps`, `width`, `quality`). Không chạy khi dùng `--no-upload`. Trang chủ chưa có đăng nhập, ai vào được server đều xem được.
+
+Log siêu âm: luôn in khi vật vào/ra ngưỡng, khi vật ổn định, khoảng cách lúc chụp và sau khi lật khay.
+Thêm `--show-distance` để in thêm khoảng cách ~0.5 s/lần lúc chờ vật (tiện chỉnh `trigger_cm`/`clear_cm`).
 
 Chưa có model trong `models/` thì dùng bộ phân loại ngẫu nhiên (chỉ để thử luồng). Có model thì cần thêm `pip install ai-edge-litert` (hoặc `tensorflow`).
 

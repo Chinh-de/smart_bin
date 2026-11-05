@@ -51,6 +51,7 @@ def main():
     ap.add_argument("--keyboard", action="store_true", help="nhấn Enter để kích hoạt nhận diện (test, ngoài siêu âm)")
     ap.add_argument("--bench", action="store_true",
                     help="chỉ test nhận diện: webcam + model thật, KHÔNG cần siêu âm/servo/GPIO; nhấn Enter để chụp")
+    ap.add_argument("--show-distance", action="store_true", help="in khoảng cách siêu âm ~0.5 s/lần khi chờ vật")
     ap.add_argument("--config", default="config")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -110,6 +111,7 @@ def main():
                             sc.get("fps", 5), sc.get("width", 480), sc.get("quality", 70))
 
     ctl = Controller(app, hw, sensor, camera, clf, decider, act, uploader, ROOT)
+    ctl.show_distance = args.show_distance
     if (args.keyboard or args.bench) and not args.mock:   # --mock đã dùng Enter để đặt/lấy vật
         threading.Thread(target=_keyboard_trigger, args=(ctl.manual,), daemon=True, name="keys").start()
     signal.signal(signal.SIGTERM, _on_sigterm)

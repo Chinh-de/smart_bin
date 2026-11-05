@@ -292,11 +292,6 @@ def page_event(event_id):
     return render_template("event.html", e=db.row_to_event(r))
 
 
-@app.get("/live")
-def page_live():
-    return render_template("live.html", devices=devices())
-
-
 @app.get("/stats")
 def page_stats():
     date = request.args.get("date") or None
