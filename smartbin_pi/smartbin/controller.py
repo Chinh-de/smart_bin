@@ -148,19 +148,12 @@ class Controller:
         self._sleep_ms("route_ms")
 
         self._set("DROP")
-        for attempt in range(2):                        # lần 2 = lắc lại khi rác bị kẹt
-            self.act.set_tray(self.hw["tray_tilt_angle"])
-            self._sleep_ms("drop_ms")
-            self.act.set_tray(self.hw["tray_rest_angle"])
-            self._sleep_ms("after_drop_ms")
-            d = self.sensor.distance_cm()
-            if d > self.hw["clear_cm"]:
-                log.info("Khay trống (siêu âm %.1f cm > %s cm)", d, self.hw["clear_cm"])
-                self.act.ok_blink()
-                return "BIN"
-            log.warning("Vật vẫn còn trên khay (lần %d, siêu âm %.1f cm <= %s cm)", attempt + 1, d, self.hw["clear_cm"])
-        self._error_until_clear()
-        return "ERROR"
+        self.act.set_tray(self.hw["tray_tilt_angle"])
+        self._sleep_ms("drop_ms")
+        self.act.set_tray(self.hw["tray_rest_angle"])
+        self._sleep_ms("after_drop_ms")
+        self.act.ok_blink()
+        return "BIN"
 
     def _reject(self, d):
         self._set("REJECT")
