@@ -19,6 +19,19 @@
 </div>
 
 <div id="dash">
+<h2>Mới nhất</h2>
+<div class="events">
+  {% for e in events %}
+  <a class="ev" href="/events/{{ e.event_id }}">
+    {% if e.image_path %}<img src="/uploads/{{ e.image_path }}" alt="" loading="lazy">{% endif %}
+    <div>{{ result_tag(e) }} <b>{{ e.top_class }}</b> {{ e.top_prob | pct }}<br>
+      <span class="muted">{{ e.ts | hm }}{{ ' · không chắc' if e.uncertain }}</span></div>
+  </a>
+  {% else %}
+  <p class="muted">Chưa có sự kiện nào.</p>
+  {% endfor %}
+</div>
+
 <h2>Thiết bị</h2>
 <div class="grid">
   {% for d in devices %}
@@ -26,7 +39,7 @@
     <div><span class="dot {{ 'on-dot' if d.online else 'off-dot' }}"></span><b>{{ d.id }}</b></div>
     <div class="muted">{{ 'Online' if d.online else 'Offline' }} · lần cuối {{ d.last_seen }}</div>
     {% if d.info %}
-    <div class="muted">CPU {{ d.info.cpu_temp_c or '?' }}°C · chờ gửi {{ d.info.pending }} · chạy {{ (d.info.uptime_s // 60) }} phút</div>
+    <div class="muted">CPU {{ d.info.cpu_temp_c or '?' }}°C · chờ gửi {{ d.info.pending or 0 }} · chạy {{ ((d.info.uptime_s or 0) // 60) }} phút</div>
     {% endif %}
   </div>
   {% else %}
@@ -43,18 +56,6 @@
   <div class="card"><div class="muted">Suy luận TB</div><div class="big">{{ stats.avg_inference_ms }}<span class="muted"> ms</span></div></div>
 </div>
 
-<h2>Mới nhất</h2>
-<div class="events">
-  {% for e in events %}
-  <a class="ev" href="/events/{{ e.event_id }}">
-    {% if e.image_path %}<img src="/uploads/{{ e.image_path }}" alt="" loading="lazy">{% endif %}
-    <div>{{ result_tag(e) }} <b>{{ e.top_class }}</b> {{ e.top_prob | pct }}<br>
-      <span class="muted">{{ e.ts | hm }}{{ ' · không chắc' if e.uncertain }}</span></div>
-  </a>
-  {% else %}
-  <p class="muted">Chưa có sự kiện nào.</p>
-  {% endfor %}
-</div>
 </div>
 
 <script>

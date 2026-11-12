@@ -55,7 +55,12 @@ Chép từ output Kaggle vào `models/`: `model_int8.tflite`, `labels.json` (và
 
 # phần cứng: chỉnh góc servo từng thùng, góc lật khay, đo khoảng cách khay
 .venv/bin/python tools/calibrate.py
+
+# cơ cấu 2 servo (ngang chọn bên 45°/135° + dọc nghiêng đổ) cho 4 thùng: nhập 1..4 để thử
+.venv/bin/python tools/servo_test.py          # thêm --speed 25 để quay chậm hơn, --mock để thử không cần Pi
 ```
+
+Cấu hình `servo_test.py` ở `config/servo_test.json` (`tilt_delta`, `tilt_sign` đảo chiều dọc, `speed_dps` tốc độ quay, bảng thùng → góc).
 
 Với `calibrate.py`:
 1. `d` khi khay trống, rồi `d` khi đặt một vật nhỏ. Đặt `trigger_cm` nằm giữa hai giá trị, `clear_cm` lớn hơn `trigger_cm` 2–3 cm.
