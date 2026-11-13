@@ -1,6 +1,6 @@
 {
   "pan_rest": 90,
-  "tilt_rest": 90,
+  "tilt_rest": 100,
 
   "tilt_delta": 38,
   "tilt_sign": 1,
