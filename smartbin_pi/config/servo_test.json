@@ -12,8 +12,8 @@
     {"id": 4, "pan": 135, "tilt_dir": 1}
   ],
 
-  "speed_dps": 40,
-  "step_deg": 1,
+  "speed_dps": 50,
+  "update_hz": 50,
   "settle_s": 0.4,
   "hold_s": 0.8
 }

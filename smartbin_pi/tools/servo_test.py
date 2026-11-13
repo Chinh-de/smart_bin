@@ -2,7 +2,7 @@
 
     python tools/servo_test.py            # trên Pi
     python tools/servo_test.py --mock     # chạy thử logic trên máy không có GPIO
-    python tools/servo_test.py --speed 25 # quay chậm hơn (độ/giây)
+    python tools/servo_test.py --speed 30 # tốc độ đỉnh 30 độ/giây (chậm hơn)
 
 Lệnh:
     1..4      đưa rác vào thùng đó rồi về vị trí nghỉ
@@ -27,10 +27,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from smartbin import load_json  # noqa: E402
 
 MIN_ANGLE, MAX_ANGLE = 0, 180
+SMOOTHERSTEP_PEAK = 1.875  # đạo hàm lớn nhất của 6t^5-15t^4+10t^3 (tốc độ đỉnh / tốc độ trung bình)
 
 
 class PanTilt:
-    """Hai servo, mỗi lần chỉ quay từng bước nhỏ để không giật/quá nhanh."""
+    """Hai servo, mỗi servo quay mượt (tăng/giảm tốc) để không giật, không quá nhanh."""
 
     def __init__(self, hw, cfg):
         from gpiozero import AngularServo  # import muộn để --mock đặt pin factory trước
@@ -49,16 +50,29 @@ class PanTilt:
         self.pos[name] = angle
 
     def move(self, name, target):
-        """Quay từ từ tới góc target với tốc độ speed_dps."""
+        """Quay mượt tới góc target: tăng tốc dần, giảm tốc dần (smootherstep).
+
+        Tốc độ đỉnh (giữa đoạn) = speed_dps. Góc tính theo đồng hồ chứ không đếm bước,
+        nên sleep trễ nhẹ cũng không làm chuyển động bị khựng."""
         target = max(MIN_ANGLE, min(MAX_ANGLE, target))
-        cur = self.pos[name]
-        step = self.cfg["step_deg"]
-        delay = step / self.cfg["speed_dps"]
-        while abs(target - cur) > 1e-6:
-            cur += max(-step, min(step, target - cur))
-            self.servos[name].angle = cur
-            self.pos[name] = cur
-            time.sleep(delay)
+        start = self.pos[name]
+        dist = abs(target - start)
+        if dist < 1e-6:
+            return
+        duration = dist * SMOOTHERSTEP_PEAK / self.cfg["speed_dps"]
+        period = 1.0 / self.cfg["update_hz"]
+        t0 = time.monotonic()
+        while True:
+            t = (time.monotonic() - t0) / duration
+            if t >= 1:
+                break
+            s = t * t * t * (t * (6 * t - 15) + 10)
+            angle = start + (target - start) * s
+            self.servos[name].angle = angle
+            self.pos[name] = angle
+            time.sleep(period)
+        self.servos[name].angle = target
+        self.pos[name] = target
 
     def release(self):
         # ngắt xung khi đứng yên -> servo không rung/kêu, đỡ nóng
@@ -119,14 +133,14 @@ def parse_angle(arg):
 def validate(cfg):
     try:
         nums = [cfg[k] for k in ("pan_rest", "tilt_rest", "tilt_delta", "tilt_sign",
-                                 "speed_dps", "step_deg", "settle_s", "hold_s")]
+                                 "speed_dps", "update_hz", "settle_s", "hold_s")]
         bins = [(b["id"], b["pan"], b["tilt_dir"]) for b in cfg["bins"]]
     except KeyError as e:
         raise SystemExit(f"servo_test.json thiếu khoá {e}")
     if not all(isinstance(x, (int, float)) and math.isfinite(x) for x in nums):
         raise SystemExit("servo_test.json: các giá trị cấu hình phải là số hữu hạn")
-    if cfg["speed_dps"] <= 0 or cfg["step_deg"] <= 0:
-        raise SystemExit("speed_dps và step_deg phải > 0")
+    if cfg["speed_dps"] <= 0 or not 10 <= cfg["update_hz"] <= 200:
+        raise SystemExit("speed_dps phải > 0 và update_hz trong 10..200")
     if cfg["tilt_delta"] < 0 or cfg["tilt_sign"] not in (-1, 1):
         raise SystemExit("tilt_delta phải >= 0 (đổi chiều bằng tilt_sign = 1 hoặc -1)")
     for name in ("pan_rest", "tilt_rest"):
