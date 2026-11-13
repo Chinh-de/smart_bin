@@ -57,10 +57,16 @@ Chép từ output Kaggle vào `models/`: `model_int8.tflite`, `labels.json` (và
 .venv/bin/python tools/calibrate.py
 
 # cơ cấu 2 servo (ngang chọn bên 45°/135° + dọc nghiêng đổ) cho 4 thùng: nhập 1..4 để thử
-.venv/bin/python tools/servo_test.py          # thêm --speed 25 để quay chậm hơn, --mock để thử không cần Pi
+.venv/bin/python tools/servo_test.py          # thêm --speed 30 để quay chậm hơn (tốc độ đỉnh, độ/giây), --mock để thử không cần Pi
 ```
 
-Cấu hình `servo_test.py` ở `config/servo_test.json` (`tilt_delta`, `tilt_sign` đảo chiều dọc, `speed_dps` tốc độ quay, bảng thùng → góc).
+Cấu hình `servo_test.py` ở `config/servo_test.json` (`tilt_delta`, `tilt_sign` đảo chiều dọc, `speed_dps` tốc độ đỉnh, `update_hz` số lần cập nhật góc mỗi giây, bảng thùng → góc). Công cụ này dùng PWM phần cứng (xung servo ổn định, không rung) nên cần bật overlay một lần: thêm dòng sau vào `/boot/firmware/config.txt` rồi `sudo reboot` (GPIO12 = kênh 0, GPIO13 = kênh 1):
+
+```
+dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4
+```
+
+Kiểm tra: `ls /sys/class/pwm/` phải thấy `pwmchip0`. Nếu báo không ghi được `/sys/class/pwm`, chạy `sudo usermod -aG gpio $USER` rồi đăng nhập lại (hoặc chạy bằng `sudo`). `main.py` và `calibrate.py` vẫn dùng gpiozero, đừng chạy cùng lúc với `servo_test.py`.
 
 Với `calibrate.py`:
 1. `d` khi khay trống, rồi `d` khi đặt một vật nhỏ. Đặt `trigger_cm` nằm giữa hai giá trị, `clear_cm` lớn hơn `trigger_cm` 2–3 cm.
