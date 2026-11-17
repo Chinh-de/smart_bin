@@ -10,7 +10,7 @@ smartbin_pi/
 ├── config/                 # app.json, hardware.json (chân GPIO, góc, thời gian), bins.json (lớp → thùng)
 ├── models/                 # chép model_int8.tflite + labels.json từ Kaggle vào đây
 ├── smartbin/               # classifier, decider, camera, hardware, uploader, controller, mock
-├── tools/                  # test_image.py, calibrate.py
+├── tools/                  # test_image.py, calibrate.py, servo_test.py, loadcell_test.py
 ├── server/                 # web server Flask + SQLite
 └── systemd/                # tự khởi động khi bật nguồn
 ```
@@ -27,6 +27,9 @@ smartbin_pi/
 | Đèn chiếu (qua MOSFET/relay) | GPIO27 |
 | LED xanh / LED đỏ (qua điện trở 330 Ω) | GPIO5 / GPIO6 |
 | Buzzer | GPIO26 |
+| HX711 VCC / GND | 3V3 (chân 1) / GND (chân 6) — **dùng 3.3 V, không dùng 5 V** |
+| HX711 DT / SCK | GPIO20 (chân 38) / GPIO21 (chân 40) |
+| Load cell → HX711 | đỏ → E+, đen → E−, trắng → A−, xanh lá → A+ (B+/B− bỏ trống) |
 | Webcam | USB |
 
 **Servo dùng nguồn 5–6 V riêng (≥ 2 A)**, nối GND nguồn servo với GND của Pi. Không lấy nguồn servo từ chân 5 V của Pi.
@@ -58,7 +61,12 @@ Chép từ output Kaggle vào `models/`: `model_int8.tflite`, `labels.json` (và
 
 # cơ cấu 2 servo (ngang chọn bên 45°/135° + dọc nghiêng đổ) cho 4 thùng: nhập 1..4 để thử
 .venv/bin/python tools/servo_test.py          # thêm --speed 30 để quay chậm hơn (tốc độ đỉnh, độ/giây), --mock để thử không cần Pi
+
+# load cell + HX711: đọc thô, tare, hiệu chuẩn bằng vật biết khối lượng (lưu config/loadcell.json)
+.venv/bin/python tools/loadcell_test.py       # --mock để thử không cần Pi
 ```
+
+`loadcell_test.py`: gõ `t` khi cân trống (tare), đặt vật đã biết khối lượng rồi `c <gram>` (vd `c 500`), sau đó `w`/`r` để đọc gram, `n` để xem độ nhiễu. Số đọc âm khi đặt vật thì đảo dây A+ ↔ A−. Màu dây load cell mỗi hãng một kiểu; nếu `t`/`c` báo chênh lệch ≈ 0 thì kiểm tra lại E+/E−/A+/A−.
 
 Cấu hình `servo_test.py` ở `config/servo_test.json` (`tilt_delta`, `tilt_sign` đảo chiều dọc, `speed_dps` tốc độ đỉnh, `update_hz` số lần cập nhật góc mỗi giây, bảng thùng → góc). Công cụ này dùng PWM phần cứng (xung servo ổn định, không rung) nên cần bật overlay một lần: thêm dòng sau vào `/boot/firmware/config.txt` rồi `sudo reboot` (GPIO12 = kênh 0, GPIO13 = kênh 1):
 
