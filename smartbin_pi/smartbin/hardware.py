@@ -1,5 +1,6 @@
-"""Cảm biến HC-SR04, servo, đèn, còi trên Raspberry Pi (gpiozero)."""
-from gpiozero import LED, AngularServo, Buzzer, DistanceSensor
+"""Cảm biến HC-SR04, đèn buồng chụp, LED, còi, công tắc cửa trên Raspberry Pi (gpiozero).
+Servo không ở đây: dùng PWM phần cứng qua smartbin/servo.py."""
+from gpiozero import LED, Button, Buzzer, DistanceSensor
 
 
 class UltrasonicSensor:
@@ -14,29 +15,14 @@ class UltrasonicSensor:
         self.s.close()
 
 
-class Actuators:
-    def __init__(self, hw):
-        p = hw["pins"]
-        pulse = dict(min_angle=0, max_angle=180,
-                     min_pulse_width=hw["servo_min_pulse_ms"] / 1000,
-                     max_pulse_width=hw["servo_max_pulse_ms"] / 1000)
-        self.chute_servo = AngularServo(p["servo_chute"], **pulse)
-        self.tray_servo = AngularServo(p["servo_tray"], **pulse)
-        self.light_led = LED(p["light"])
-        self.led_ok = LED(p["led_ok"])
-        self.led_err = LED(p["led_err"])
-        self.buzzer = Buzzer(p["buzzer"])
+class Indicators:
+    """Đèn LED trần buồng chụp (qua transistor), LED xanh/đỏ, còi."""
 
-    def set_chute(self, angle):
-        self.chute_servo.angle = angle
-
-    def set_tray(self, angle):
-        self.tray_servo.angle = angle
-
-    def release_servos(self):
-        # ngắt xung khi đứng yên -> servo không rung/kêu, đỡ nóng
-        self.chute_servo.detach()
-        self.tray_servo.detach()
+    def __init__(self, pins):
+        self.light_led = LED(pins["light"])
+        self.led_ok = LED(pins["led_ok"])
+        self.led_err = LED(pins["led_err"])
+        self.buzzer = Buzzer(pins["buzzer"])
 
     def light(self, on):
         self.light_led.value = on
@@ -44,20 +30,33 @@ class Actuators:
     def ok_blink(self):
         self.led_ok.blink(on_time=0.3, off_time=0.2, n=2)
 
-    def reject_alarm(self, on):
+    def error(self, on):
+        """Lỗi (rác kẹt trên khay, lỗi phần cứng): LED đỏ nháy nhanh + còi bíp."""
         if on:
-            self.led_err.blink(on_time=0.3, off_time=0.3)
+            self.led_err.blink(on_time=0.1, off_time=0.1)
             self.buzzer.beep(on_time=0.2, off_time=0.8)
         else:
             self.led_err.off()
             self.buzzer.off()
 
-    def error(self, on):
-        if on:
-            self.led_err.blink(on_time=0.1, off_time=0.1)
-        else:
-            self.led_err.off()
+    def door_open(self, on):
+        """Cửa hông đang mở: LED đỏ sáng liên tục, không còi."""
+        self.led_err.value = on
 
     def close(self):
-        for d in (self.chute_servo, self.tray_servo, self.light_led, self.led_ok, self.led_err, self.buzzer):
+        for d in (self.light_led, self.led_ok, self.led_err, self.buzzer):
             d.close()
+
+
+class DoorSwitch:
+    """Công tắc lưỡi gà (reed) ở các cửa hông. Cửa đóng = nam châm gần = reed đóng, kéo chân xuống GND.
+    Nhiều cửa thì nối các reed NỐI TIẾP: chỉ cần 1 cửa mở là mạch hở -> báo mở."""
+
+    def __init__(self, pin):
+        self.b = Button(pin, pull_up=True, bounce_time=0.05)
+
+    def is_open(self):
+        return not self.b.is_pressed
+
+    def close(self):
+        self.b.close()

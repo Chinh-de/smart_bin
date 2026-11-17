@@ -1,7 +1,8 @@
 """Giả lập phần cứng để chạy thử trên laptop.
 - Cảm biến: nhấn Enter = đặt / lấy vật trên khay.
 - Camera: lần lượt lấy ảnh trong một thư mục (mỗi lần chụp = 1 ảnh).
-- Servo/đèn/còi: in ra màn hình; lật khay thì vật tự rơi khỏi khay."""
+- Servo: PanTilt(mock=True) (xung giả); attach_mock_servo() in góc và cho vật rơi khi khay lật.
+- Đèn/LED/còi: in ra màn hình."""
 import itertools
 import logging
 import threading
@@ -48,6 +49,16 @@ class NullSensor:
         pass
 
 
+def attach_mock_servo(pantilt, sensor):
+    """In góc servo; khi khay lật khỏi vị trí nghỉ thì vật trên khay rơi xuống."""
+    def moved(name, angle):
+        print(f">>> servo {'A ngang' if name == 'pan' else 'B dọc'} -> {angle:g}°")
+        if name == "tilt" and not pantilt.at_rest and sensor.present:
+            sensor.present = False
+            print(">>> (vật đã rơi khỏi khay)")
+    pantilt.on_moved = moved
+
+
 class MockCamera:
     def __init__(self, image_dir=None):
         files = sorted(p for p in Path(image_dir).rglob("*") if p.suffix.lower() in IMG_EXT) if image_dir else []
@@ -76,33 +87,18 @@ class MockCamera:
         pass
 
 
-class MockActuators:
-    def __init__(self, sensor):
-        self.sensor = sensor
-
-    def set_chute(self, angle):
-        print(f">>> servo máng -> {angle}°")
-
-    def set_tray(self, angle):
-        print(f">>> servo khay -> {angle}°")
-        if angle != 0 and self.sensor.present:
-            self.sensor.present = False
-            print(">>> (vật đã rơi khỏi khay)")
-
-    def release_servos(self):
-        pass
-
+class MockIndicators:
     def light(self, on):
-        print(f">>> đèn chiếu {'BẬT' if on else 'TẮT'}")
+        print(f">>> đèn buồng chụp {'BẬT' if on else 'TẮT'}")
 
     def ok_blink(self):
         print(">>> LED xanh nháy")
 
-    def reject_alarm(self, on):
-        print(">>> ĐÈN ĐỎ + CÒI: BẬT (nhấn Enter để lấy vật ra)" if on else ">>> đèn đỏ + còi: TẮT")
-
     def error(self, on):
-        print(">>> LỖI: đèn đỏ nhấp nháy (nhấn Enter để lấy vật ra)" if on else ">>> hết lỗi")
+        print(">>> LỖI: LED đỏ nháy + còi (nhấn Enter để lấy vật ra)" if on else ">>> hết lỗi")
+
+    def door_open(self, on):
+        print(f">>> LED đỏ {'sáng (cửa mở)' if on else 'tắt'}")
 
     def close(self):
         pass

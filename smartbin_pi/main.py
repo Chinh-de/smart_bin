@@ -1,6 +1,8 @@
-"""Thùng rác phân loại thông minh — chương trình chính trên Raspberry Pi.
+"""Thùng rác phân loại 4 ngăn — chương trình chính trên Raspberry Pi.
 
-    python main.py                      # chạy thật (webcam USB + GPIO)
+    python main.py                      # chạy thật (webcam USB + HC-SR04 + 2 servo PWM phần cứng)
+    python main.py --keyboard           # như trên, thêm Enter = kích hoạt nhận diện
+    python main.py --bench              # chỉ webcam + model, không cần GPIO
     python main.py --mock --images DIR  # giả lập trên laptop: Enter = đặt/lấy vật, ảnh lấy từ DIR
 """
 import argparse
@@ -14,6 +16,8 @@ from pathlib import Path
 from smartbin import ROOT, load_config, load_json
 from smartbin.controller import Controller
 from smartbin.decider import Decider
+from smartbin.servo import PanTilt
+from smartbin.servo import validate as validate_servo
 from smartbin.uploader import Uploader
 
 
@@ -30,7 +34,7 @@ def setup_logging(data_dir, verbose):
 
 
 def _on_sigterm(*_):
-    raise KeyboardInterrupt        # systemctl stop gửi SIGTERM: đi qua khối finally để tắt đèn, nhả servo
+    raise KeyboardInterrupt        # systemctl stop gửi SIGTERM: đi qua khối finally để tắt đèn, đưa servo về nghỉ
 
 
 def _keyboard_trigger(event):
@@ -78,27 +82,36 @@ def main():
         sys.exit(f"Không thấy model {model}. Chép model_int8.tflite + labels.json từ Kaggle vào models/")
 
     decider = Decider(cfg["bins"], clf.classes)
+    validate_servo(hw["servo"], cfg["bins"]["bins"])
 
+    fake_io = args.mock or args.bench
+    if fake_io:
+        hw = {**hw, **{k: min(v, 300) for k, v in hw.items() if k.endswith("_ms")}}   # chạy nhanh hơn khi giả lập
+    servos = PanTilt(hw["pins"], hw["servo"], mock=fake_io)
+    door = None
     if args.mock:
-        from smartbin.mock import MockActuators, MockCamera, MockSensor
+        from smartbin.mock import MockCamera, MockIndicators, MockSensor, attach_mock_servo
         sensor = MockSensor(hw["trigger_cm"])
         camera = MockCamera(args.images)
-        act = MockActuators(sensor)
-        hw = {**hw, **{k: min(v, 300) for k, v in hw.items() if k.endswith("_ms")}}   # chạy nhanh hơn khi giả lập
+        ind = MockIndicators()
+        attach_mock_servo(servos, sensor)
     elif args.bench:
         from smartbin.camera import UsbCamera
-        from smartbin.mock import MockActuators, NullSensor
+        from smartbin.mock import MockIndicators, NullSensor, attach_mock_servo
         sensor = NullSensor()
         camera = UsbCamera(app["camera_index"], app["camera_width"], app["camera_height"])
-        act = MockActuators(sensor)       # servo/đèn/còi chỉ in ra màn hình
-        hw = {**hw, **{k: min(v, 300) for k, v in hw.items() if k.endswith("_ms")}}
+        ind = MockIndicators()       # servo/đèn/còi chỉ in ra màn hình
+        attach_mock_servo(servos, sensor)
         log.warning("Chế độ --bench: không dùng siêu âm/servo, chỉ nhận diện bằng webcam")
     else:
         from smartbin.camera import UsbCamera
-        from smartbin.hardware import Actuators, UltrasonicSensor
+        from smartbin.hardware import DoorSwitch, Indicators, UltrasonicSensor
         sensor = UltrasonicSensor(hw["pins"]["trig"], hw["pins"]["echo"])
         camera = UsbCamera(app["camera_index"], app["camera_width"], app["camera_height"])
-        act = Actuators(hw)
+        ind = Indicators(hw["pins"])
+        if hw["pins"].get("door") is not None:
+            door = DoorSwitch(hw["pins"]["door"])
+            log.info("Công tắc cửa hông: GPIO%s", hw["pins"]["door"])
 
     uploader = None if args.no_upload else \
         Uploader(app["server_url"], app["api_key"], app["device_id"], ROOT / "queue", app["heartbeat_s"])
@@ -110,7 +123,7 @@ def main():
         streamer = Streamer(app["server_url"], app["api_key"], app["device_id"], camera,
                             sc.get("fps", 5), sc.get("width", 480), sc.get("quality", 70))
 
-    ctl = Controller(app, hw, sensor, camera, clf, decider, act, uploader, ROOT)
+    ctl = Controller(app, hw, sensor, camera, clf, decider, servos, ind, uploader, ROOT, door)
     ctl.show_distance = args.show_distance
     if (args.keyboard or args.bench) and not args.mock:   # --mock đã dùng Enter để đặt/lấy vật
         threading.Thread(target=_keyboard_trigger, args=(ctl.manual,), daemon=True, name="keys").start()
@@ -120,7 +133,8 @@ def main():
     except KeyboardInterrupt:
         log.info("Dừng.")
     finally:
-        for x in (streamer, uploader, camera, act, sensor):
+        # servo đóng trước: về vị trí nghỉ rồi ngắt xung
+        for x in (servos, streamer, uploader, camera, ind, door, sensor):
             if x:
                 try:
                     x.close()

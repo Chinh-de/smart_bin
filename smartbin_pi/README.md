@@ -1,6 +1,13 @@
 # Smartbin trên Raspberry Pi 4
 
-Đặt rác lên khay → HC-SR04 phát hiện → webcam chụp → model TFLite phân loại 10 lớp → servo đưa vào thùng (pin: từ chối + cảnh báo) → ghi log và gửi ảnh + thông tin lên web server (chạy ngay trên Pi).
+Thùng rác 4 ngăn (thiết kế: `../smartbin_4thung.html`). Đặt rác lên khay qua cửa trước → HC-SR04 phát hiện, chờ vật nằm yên → bật đèn, webcam chụp 5 khung → model TFLite phân loại 10 lớp → servo A xoay khay sang 45°/135°, servo B lật khay đổ rác vào 1 trong 4 thùng → khay về nghỉ, siêu âm kiểm tra khay đã trống (còn vật thì lật lại 1 lần, vẫn còn thì báo lỗi kẹt) → ghi log và gửi ảnh + thông tin lên web server (chạy ngay trên Pi).
+
+| Thùng | Loại | Lớp | Servo A (ngang) | Servo B (lật) |
+|---|---|---|---|---|
+| 1 | Rác tái chế | plastic, metal, paper, cardboard | 45° | `tilt_rest − tilt_delta` |
+| 2 | Rác thực phẩm | biological | 135° | `tilt_rest − tilt_delta` |
+| 3 | Rác thải khác | trash, clothes, shoes, glass, **không chắc chắn** | 45° | `tilt_rest + tilt_delta` |
+| 4 | Rác nguy hại | battery (chỉ cần ≥ 0.4 là vào thùng 4) | 135° | `tilt_rest + tilt_delta` |
 
 Đặc tả: [../docs/dac_ta_ung_dung.md](../docs/dac_ta_ung_dung.md)
 
@@ -9,7 +16,7 @@ smartbin_pi/
 ├── main.py                 # chương trình điều khiển thùng rác
 ├── config/                 # app.json, hardware.json (chân GPIO, góc, thời gian), bins.json (lớp → thùng)
 ├── models/                 # chép model_int8.tflite + labels.json từ Kaggle vào đây
-├── smartbin/               # classifier, decider, camera, hardware, uploader, controller, mock
+├── smartbin/               # classifier, decider, camera, servo (2 servo PWM phần cứng), hardware (siêu âm, đèn, LED, còi, cửa), controller, uploader, mock
 ├── tools/                  # test_image.py, calibrate.py, servo_test.py, loadcell_test.py
 ├── server/                 # web server Flask + SQLite
 └── systemd/                # tự khởi động khi bật nguồn
@@ -22,11 +29,12 @@ smartbin_pi/
 | HC-SR04 VCC / GND | 5V / GND |
 | HC-SR04 TRIG | GPIO23 |
 | HC-SR04 ECHO | GPIO24 **qua cầu chia áp**: ECHO → 1 kΩ → GPIO24 → 2 kΩ → GND |
-| Servo máng (tín hiệu) | GPIO12 |
-| Servo khay (tín hiệu) | GPIO13 |
-| Đèn chiếu (qua MOSFET/relay) | GPIO27 |
+| Servo A, xoay ngang (tín hiệu) | GPIO12 (PWM0 phần cứng) |
+| Servo B, lật khay (tín hiệu) | GPIO13 (PWM1 phần cứng) |
+| Đèn LED trần buồng chụp (qua 2N2222) | GPIO27 |
 | LED xanh / LED đỏ (qua điện trở 330 Ω) | GPIO5 / GPIO6 |
 | Buzzer | GPIO26 |
+| Công tắc cửa hông (tùy chọn) | GPIO16 ↔ GND, đặt `"door": 16` trong `hardware.json`. Nhiều cửa thì nối các reed **nối tiếp** (cửa nào mở cũng làm hở mạch) |
 | HX711 VCC / GND | 3V3 (chân 1) / GND (chân 6) — **dùng 3.3 V, không dùng 5 V** |
 | HX711 DT / SCK | GPIO20 (chân 38) / GPIO21 (chân 40) |
 | Load cell → HX711 | đỏ → E+, đen → E−, trắng → A−, xanh lá → A+ (B+/B− bỏ trống) |
@@ -56,7 +64,7 @@ Chép từ output Kaggle vào `models/`: `model_int8.tflite`, `labels.json` (và
 # model: phân loại ảnh có sẵn, in top-3, thùng và thời gian suy luận
 .venv/bin/python tools/test_image.py anh_mau/
 
-# phần cứng: chỉnh góc servo từng thùng, góc lật khay, đo khoảng cách khay
+# buồng chụp: đo khoảng cách khay, bật đèn, chụp thử khung hình, đọc công tắc cửa
 .venv/bin/python tools/calibrate.py
 
 # cơ cấu 2 servo (ngang chọn bên 45°/135° + dọc nghiêng đổ) cho 4 thùng: nhập 1..4 để thử
@@ -68,19 +76,17 @@ Chép từ output Kaggle vào `models/`: `model_int8.tflite`, `labels.json` (và
 
 `loadcell_test.py`: gõ `t` khi cân trống (tare), đặt vật đã biết khối lượng rồi `c <gram>` (vd `c 500`), sau đó `w`/`r` để đọc gram, `n` để xem độ nhiễu. Số đọc âm khi đặt vật thì đảo dây A+ ↔ A−. Màu dây load cell mỗi hãng một kiểu; nếu `t`/`c` báo chênh lệch ≈ 0 thì kiểm tra lại E+/E−/A+/A−.
 
-Cấu hình `servo_test.py` ở `config/servo_test.json` (`tilt_delta`, `tilt_sign` đảo chiều dọc, `speed_dps` tốc độ đỉnh, `update_hz` số lần cập nhật góc mỗi giây, bảng thùng → góc). Công cụ này dùng PWM phần cứng (xung servo ổn định, không rung) nên cần bật overlay một lần: thêm dòng sau vào `/boot/firmware/config.txt` rồi `sudo reboot` (GPIO12 = kênh 0, GPIO13 = kênh 1):
+`servo_test.py` dùng chung cấu hình với `main.py`: mục `servo` trong `config/hardware.json` (`pan_rest`, `tilt_rest`, `tilt_delta`, `tilt_sign` đảo chiều dọc, `speed_dps` tốc độ đỉnh, `update_hz`, `settle_s`, `hold_s`) và `pan`/`tilt_dir` của từng thùng trong `config/bins.json`. Servo dùng PWM phần cứng (xung ổn định, không rung) nên cần bật overlay một lần: thêm dòng sau vào `/boot/firmware/config.txt` rồi `sudo reboot` (GPIO12 = kênh 0, GPIO13 = kênh 1):
 
 ```
 dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4
 ```
 
-Kiểm tra: `ls /sys/class/pwm/` phải thấy `pwmchip0`. Nếu báo không ghi được `/sys/class/pwm`, chạy `sudo usermod -aG gpio $USER` rồi đăng nhập lại (hoặc chạy bằng `sudo`). `main.py` và `calibrate.py` vẫn dùng gpiozero, đừng chạy cùng lúc với `servo_test.py`.
+Kiểm tra: `ls /sys/class/pwm/` phải thấy `pwmchip0`. Nếu báo không ghi được `/sys/class/pwm`, chạy `sudo usermod -aG gpio $USER` rồi đăng nhập lại (hoặc chạy bằng `sudo`). Không chạy `servo_test.py` cùng lúc với `main.py`.
 
 Với `calibrate.py`:
 1. `d` khi khay trống, rồi `d` khi đặt một vật nhỏ. Đặt `trigger_cm` nằm giữa hai giá trị, `clear_cm` lớn hơn `trigger_cm` 2–3 cm.
-2. `c <góc>` tới khi máng chỉ đúng từng thùng → ghi vào `angle` trong `config/bins.json`; góc nghỉ → `chute_rest_angle`.
-3. `t <góc>` để tìm góc khay nằm ngang (`tray_rest_angle`) và góc đủ để rác trượt xuống (`tray_tilt_angle`).
-4. `s` chụp thử `calib.jpg` để chỉnh vị trí webcam/đèn: vật nằm giữa khung, nền trắng.
+2. `s` chụp thử `calib.jpg` (có bật đèn) để chỉnh camera: khay nằm trong ô vuông đỏ (vùng model nhìn thấy), nền trắng, ảnh nét.
 
 ## 4. Chạy
 
@@ -95,7 +101,7 @@ Mở web từ điện thoại/laptop cùng WiFi: `http://<ip-của-pi>:5000` (xe
 
 - **Tổng quan**: thiết bị online/offline, số rác hôm nay theo thùng, sự kiện mới nhất (tự làm mới 5 s).
 - **Lịch sử**: lọc theo thùng / kết quả / lớp / ngày, bấm vào xem ảnh lớn và xác suất.
-- **Thống kê**: theo thùng, lớp, giờ, ngày; số lần từ chối, không chắc chắn, lỗi kẹt rác.
+- **Thống kê**: theo thùng, lớp, giờ, ngày; số lần không chắc chắn, lỗi kẹt rác.
 
 API cho phần mở rộng: `GET /api/events`, `GET /api/stats`.
 
@@ -147,12 +153,8 @@ Chưa có model trong `models/` thì dùng bộ phân loại ngẫu nhiên (ch�
 
 ## 8. Đổi cách phân loại
 
-Chỉ sửa `config/bins.json`, không cần train lại. Ví dụ đưa thủy tinh ra khỏi thùng 3 và từ chối:
-
-```json
-"reject": [
-  {"class": "battery", "threshold": 0.4, "message": "Pin là rác nguy hại, vui lòng bỏ vào điểm thu gom pin"},
-  {"class": "glass",   "threshold": 0.4, "message": "Vui lòng bỏ thủy tinh vào ngăn riêng"}
-]
-```
-(và xoá `"glass"` khỏi `classes` của thùng 3).
+Chỉ sửa `config/bins.json`, không cần train lại:
+- `classes` của từng thùng: lớp nào vào thùng nào (mỗi lớp chỉ ở 1 thùng). Lớp không thuộc thùng nào tính vào `uncertain_bin`.
+- `priority`: lớp nguy hiểm vượt `threshold` là vào thẳng `bin`, kiểm tra trước mọi thứ khác (mặc định pin ≥ 0.4 → thùng 4).
+- `confident_threshold`: tổng xác suất của thùng thắng thấp hơn ngưỡng này thì đưa vào `uncertain_bin` (thùng 3).
+- `pan` / `tilt_dir`: vị trí thùng (góc servo A, chiều lật servo B), thử bằng `tools/servo_test.py`.

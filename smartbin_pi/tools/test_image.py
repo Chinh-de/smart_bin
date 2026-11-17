@@ -41,8 +41,7 @@ def main():
         probs, ms = clf.predict([img])
         times.append(ms)
         d = dec.decide(probs)
-        target = f"TỪ CHỐI ({d.message})" if d.result == "REJECT" else \
-            f"{d.bin_name}{' [không chắc]' if d.uncertain else ''}"
+        target = f"thùng {d.bin_id} {d.bin_name}" + (f" [{d.message}]" if d.message else "")
         top3 = ", ".join(f"{c} {v:.2f}" for c, v in d.top3)
         print(f"{p.name:30s} {top3:45s} -> {target}  ({ms:.0f} ms)")
     if times:
