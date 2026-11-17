@@ -200,10 +200,14 @@ def tilt_angle(cfg, direction):
     return cfg["tilt_rest"] + direction * cfg["tilt_sign"] * cfg["tilt_delta"]
 
 
+def _homing_notice(signum, frame):
+    print("\nđang về vị trí nghỉ, đợi vài giây (không ngắt giữa chừng)...", flush=True)
+
+
 @contextmanager
 def ignore_sigint():
-    """Chặn Ctrl+C lần 2 khi đang về nghỉ, để không bỏ dở lúc máng còn nghiêng."""
-    old = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    """Ctrl+C lần 2 khi đang về nghỉ không ngắt được, chỉ báo đang chờ (để không bỏ dở lúc máng còn nghiêng)."""
+    old = signal.signal(signal.SIGINT, _homing_notice)
     try:
         yield
     finally:
@@ -228,6 +232,17 @@ def dump_to_bin(pt, cfg, b):
         time.sleep(cfg["hold_s"])
     finally:
         go_home(pt, cfg)  # lỗi/Ctrl+C giữa chừng vẫn về nghỉ
+
+
+def read_command():
+    """Đọc 1 dòng lệnh; phím gõ trong lúc servo đang chạy bị bỏ, không dồn thành chu trình tiếp theo."""
+    if sys.stdin.isatty():
+        try:
+            import termios
+            termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+        except (ImportError, OSError, ValueError):
+            pass
+    return input("> ").strip().split()
 
 
 def parse_angle(arg):
@@ -281,6 +296,7 @@ def main():
 
     pt = PanTilt(hw, cfg, mock=args.mock)
     print(__doc__)
+    print("Chờ servo chạy xong rồi mới gõ lệnh tiếp: phím gõ lúc servo đang chạy sẽ bị bỏ.")
     print(f"Tốc độ {cfg['speed_dps']:g}°/s. Lần chạy đầu servo sẽ nhảy thẳng về vị trí nghỉ "
           f"(ngang {cfg['pan_rest']}°, dọc {cfg['tilt_rest']}°) - giữ tay/đồ ra khỏi máng.")
     try:
@@ -290,7 +306,7 @@ def main():
         pt.release()
         while True:
             try:
-                cmd = input("> ").strip().split()
+                cmd = read_command()
             except EOFError:
                 break
             if not cmd:
