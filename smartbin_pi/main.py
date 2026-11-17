@@ -88,6 +88,9 @@ def main():
     if fake_io:
         hw = {**hw, **{k: min(v, 300) for k, v in hw.items() if k.endswith("_ms")}}   # chạy nhanh hơn khi giả lập
     servos = PanTilt(hw["pins"], hw["servo"], mock=fake_io)
+    sc = hw["servo"]
+    log.info("Servo về nghỉ: ngang %s°, dọc %s° (hardware.json -> servo)", sc["pan_rest"], sc["tilt_rest"])
+    servos.startup()        # trước khi mở webcam: lúc khởi động servo không phải chia nguồn với webcam
     door = None
     if args.mock:
         from smartbin.mock import MockCamera, MockIndicators, MockSensor, attach_mock_servo

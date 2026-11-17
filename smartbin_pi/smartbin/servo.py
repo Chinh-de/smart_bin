@@ -245,8 +245,10 @@ class PanTilt:
         return self.pos.get("tilt") == self.cfg["tilt_rest"]
 
     def startup(self):
-        """Nhảy thẳng về vị trí nghỉ (dọc trước), chờ servo tới nơi rồi ngắt xung."""
+        """Nhảy thẳng về vị trí nghỉ, TỪNG servo một (dọc trước), chờ mỗi con tới nơi rồi mới ngắt xung.
+        Không cho 2 servo khởi động cùng lúc: dòng đỉnh gấp đôi làm sụt nguồn 5V, servo đứng yên chỗ cũ."""
         self.snap("tilt", self.cfg["tilt_rest"])
+        time.sleep(STARTUP_WAIT_S)
         self.snap("pan", self.cfg["pan_rest"])
         time.sleep(STARTUP_WAIT_S)
         self.release()

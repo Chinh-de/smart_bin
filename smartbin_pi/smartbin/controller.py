@@ -123,9 +123,8 @@ class Controller:
 
     # ---------- vòng chính ----------
     def run(self):
-        sc = self.servos.cfg
-        log.info("Servo về nghỉ: ngang %s°, dọc %s° (hardware.json -> servo)", sc["pan_rest"], sc["tilt_rest"])
-        self.servos.startup()
+        if not self.servos.ready:       # main.py đã đưa servo về nghỉ trước khi mở webcam
+            self.servos.startup()
         log.info("Sẵn sàng. Ngưỡng phát hiện < %s cm", self.hw["trigger_cm"])
         while True:
             self._set("IDLE")

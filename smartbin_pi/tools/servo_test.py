@@ -66,8 +66,8 @@ def main():
     pt = PanTilt(hw["pins"], sc, mock=args.mock)
     print(__doc__)
     print("Chờ servo chạy xong rồi mới gõ lệnh tiếp: phím gõ lúc servo đang chạy sẽ bị bỏ.")
-    print(f"Tốc độ {sc['speed_dps']:g}°/s. Lần chạy đầu servo sẽ nhảy thẳng về vị trí nghỉ "
-          f"(ngang {sc['pan_rest']}°, dọc {sc['tilt_rest']}°) - giữ tay/đồ ra khỏi khay.")
+    print(f"Tốc độ {sc['speed_dps']:g}°/s. Lần chạy đầu servo sẽ nhảy thẳng về vị trí nghỉ, từng con một "
+          f"(dọc {sc['tilt_rest']}° rồi ngang {sc['pan_rest']}°, ~2,5 s) - giữ tay/đồ ra khỏi khay.")
     try:
         pt.startup()
         while True:
