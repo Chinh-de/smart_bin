@@ -174,31 +174,45 @@ def show_config(calib):
         print(f"chưa hiệu chuẩn (offset={calib['offset']:.0f}): gram hiện chỉ là số đếm thô, gõ t rồi c <gram>")
 
 
-def raw_loop(sensor):
-    """In giá trị thô từng mẫu (không lọc) để kiểm tra dây nối: chỉ cần thấy số ổn định và đổi khi ấn/đặt vật."""
-    print("Đọc thô, Ctrl+C để dừng. Cách kiểm tra:")
+def raw_loop(sensor, interval):
+    """In giá trị thô (không lọc) mỗi `interval` giây để kiểm tra dây nối.
+
+    Vẫn đọc liên tục mọi mẫu giữa hai lần in, nên min/max/số mẫu hỏng tính trên tất cả mẫu,
+    còn dòng in ra là mẫu mới nhất (không phải mẫu cũ). interval = 0: in mọi mẫu."""
+    print(f"Đọc thô, in mỗi {interval:g} s, Ctrl+C để dừng. Cách kiểm tra:")
     print("  1. Cân trống: số phải ổn định (dao động vài chục..vài trăm đơn vị là bình thường).")
     print("  2. Ấn nhẹ / đặt vật lên load cell: số phải đổi rõ (hàng nghìn trở lên).")
     print("  3. Đổi chiều lực mà số đổi ngược dấu là bình thường; ấn vào mà số giảm thì đảo A+ <-> A- nếu muốn tăng.")
     print("  Số luôn -1 / 8388607 / -8388608, hoặc báo timeout: dây sai/lỏng, xem hướng dẫn nối ở đầu file.\n")
-    first, lo, hi, n, bad = None, None, None, 0, 0
+    first = lo = hi = last = None
+    n = bad = bad_since = 0
+    next_print = time.monotonic()
     try:
         while True:
             try:
                 raw = sensor.read_raw()
             except TimeoutError as e:
-                print(f"\nlỗi: {e}")
+                print(f"lỗi: {e}")
                 time.sleep(0.5)
                 continue
             n += 1
             if raw in (-1, SAT_MIN, SAT_MAX):
                 bad += 1
-                print(f"raw={raw:>10}   <- mẫu hỏng/bão hòa")
+                bad_since += 1
+            else:
+                first = raw if first is None else first
+                lo = raw if lo is None else min(lo, raw)
+                hi = raw if hi is None else max(hi, raw)
+                last = raw
+            if time.monotonic() < next_print:
                 continue
-            first = raw if first is None else first
-            lo = raw if lo is None else min(lo, raw)
-            hi = raw if hi is None else max(hi, raw)
-            print(f"raw={raw:>10}   so với lúc đầu {raw - first:>+9}   min {lo}  max {hi}")
+            next_print = time.monotonic() + interval
+            if last is None:
+                print(f"raw=    (chưa có mẫu hợp lệ)   mẫu hỏng/bão hòa: {bad_since}")
+            else:
+                note = f"   mẫu hỏng: {bad_since}" if bad_since else ""
+                print(f"raw={last:>10}   so với lúc đầu {last - first:>+9}   min {lo}  max {hi}{note}")
+            bad_since = 0
     except KeyboardInterrupt:
         print(f"\n{n} mẫu, {bad} mẫu hỏng" + (f", dao động {hi - lo}" if lo is not None else ""))
 
@@ -209,7 +223,11 @@ def main():
     ap.add_argument("--chip", type=int, help="gpiochip (mặc định: tự nhận, Pi 5 = 4, còn lại 0)")
     ap.add_argument("--raw", action="store_true",
                     help="chỉ in giá trị thô liên tục (không lọc, không cần tare/hiệu chuẩn), Ctrl+C để dừng")
+    ap.add_argument("--interval", type=float, default=0.5,
+                    help="với --raw: số giây giữa hai dòng in (mặc định 0.5, 0 = in mọi mẫu)")
     args = ap.parse_args()
+    if not math.isfinite(args.interval) or args.interval < 0:
+        raise SystemExit("--interval phải >= 0")
 
     pins = load_json("config/hardware.json")["pins"]
     try:
@@ -219,7 +237,7 @@ def main():
     sensor = FakeHx711() if args.mock else Hx711(dt, sck, args.chip)
     if args.raw:
         try:
-            raw_loop(sensor)
+            raw_loop(sensor, args.interval)
         finally:
             sensor.close()
         return
