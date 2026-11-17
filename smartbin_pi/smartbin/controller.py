@@ -81,8 +81,12 @@ class Controller:
         self._set(prev)
 
     def _wait_trigger(self):
-        """Chờ vật nằm yên stable_ms trước siêu âm, hoặc có phím bấm. Cửa mở thì không nhận."""
-        hold, since, was_near, last_print = self.hw["stable_ms"] / 1000, None, False, 0.0
+        """Chờ vật nằm yên stable_ms trước siêu âm, hoặc có phím bấm. Cửa mở thì không nhận.
+
+        HC-SR04 hay mất tiếng vang (vật nhỏ, mặt nghiêng, vật mềm) và đọc vọt lên vài chục cm dù vật vẫn
+        nằm đó: các lần đọc xa ngắn hơn miss_ms được bỏ qua, không làm đếm lại thời gian ổn định."""
+        hold, miss = self.hw["stable_ms"] / 1000, self.hw.get("miss_ms", 400) / 1000
+        since, last_near, was_near, last_print = None, 0.0, False, 0.0
         trigger = self.hw["trigger_cm"]
         while True:
             if self._door_open():
@@ -100,17 +104,21 @@ class Controller:
             if self.show_distance and now - last_print >= 0.5:
                 log.info("Siêu âm: %.1f cm", d)
                 last_print = now
-            if near != was_near:       # chỉ log khi vào/ra ngưỡng, không spam mỗi lần đọc
-                log.info("Siêu âm: %.1f cm -> %s", d, f"có vật (< {trigger} cm), chờ ổn định {hold:.1f}s"
-                         if near else "vật rời đi trước khi ổn định")
-                was_near = near
             if near:
-                since = since or now
+                last_near = now
+                if since is None:
+                    since = now
+                    log.info("Siêu âm: %.1f cm -> có vật (< %s cm), chờ ổn định %.1fs", d, trigger, hold)
                 if now - since >= hold:
                     log.info("Siêu âm: vật ổn định ở %.1f cm -> bắt đầu nhận diện", d)
                     return
-            else:
-                since = None
+            elif since is not None:
+                if now - last_near > miss:     # xa liên tục quá miss_ms: vật thật sự đã rời đi
+                    log.info("Siêu âm: %.1f cm -> vật rời đi trước khi ổn định", d)
+                    since = None
+                elif was_near:
+                    log.debug("Siêu âm: %.1f cm (đọc hụt, bỏ qua)", d)
+            was_near = near
             self._sleep_ms("poll_ms")
 
     # ---------- vòng chính ----------

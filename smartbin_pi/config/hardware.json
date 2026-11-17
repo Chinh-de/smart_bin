@@ -34,6 +34,7 @@
 
   "poll_ms": 100,
   "stable_ms": 500,
+  "miss_ms": 400,
   "settle_ms": 500,
   "light_warmup_ms": 200,
   "check_ms": 500,
