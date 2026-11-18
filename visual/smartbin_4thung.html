@@ -1,0 +1,1416 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smartbin 4 Thùng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f3ef; --panel:#ffffff; --ink:#1c1d1f; --muted:#62656b; --line:#dcdad3;
+  --accent:#d97a1f; --accent-ink:#ffffff; --code:#f0eee8; --scene:#e9e7e1;
+  --b1:#2f6fd6; --b2:#2e9e5b; --b3:#6b7280; --b4:#d9472b;
+  --w5v:#d33a2c; --wgnd:#2b2b2b; --wsig:#e0a21b; --w33:#7b4fd1;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121315; --panel:#1b1c1f; --ink:#ecebe7; --muted:#9a9ca2; --line:#2e3034;
+    --accent:#f0953a; --accent-ink:#1b1206; --code:#202226; --scene:#17181b; --wgnd:#bfbfbf;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121315; --panel:#1b1c1f; --ink:#ecebe7; --muted:#9a9ca2; --line:#2e3034;
+  --accent:#f0953a; --accent-ink:#1b1206; --code:#202226; --scene:#17181b; --wgnd:#bfbfbf;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Be Vietnam Pro",system-ui,sans-serif;line-height:1.55;font-size:16px}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 80px}
+header h1{font-size:clamp(26px,4vw,38px);margin:0 0 6px;letter-spacing:-.02em}
+header p{margin:0;color:var(--muted);max-width:760px}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 26px}
+nav a{color:var(--ink);text-decoration:none;border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:14px;background:var(--panel)}
+nav a:hover{border-color:var(--accent)}
+section{margin-top:48px}
+h2{font-size:24px;margin:0 0 14px;letter-spacing:-.01em}
+h3{font-size:17px;margin:22px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.muted{color:var(--muted)}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+.stage{display:grid;grid-template-columns:1fr 310px;gap:14px}
+@media (max-width:900px){.stage{grid-template-columns:1fr}}
+.view{position:relative;height:min(72vh,640px);min-height:400px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--scene)}
+.view canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;left:12px;top:12px;right:12px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;flex-wrap:wrap}
+.chip{background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px;backdrop-filter:blur(4px)}
+.hint{position:absolute;right:12px;bottom:10px;font-size:12px;color:var(--muted);pointer-events:none}
+.side{display:flex;flex-direction:column;gap:12px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 10px;border-radius:10px;cursor:pointer;text-align:left;display:flex;gap:8px;align-items:center}
+button:hover{border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);justify-content:center;font-weight:600}
+button.center{justify-content:center}
+.dot{width:10px;height:10px;border-radius:3px;flex:none}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px}
+.row+.row{margin-top:6px}
+input[type=range]{width:140px;accent-color:var(--accent)}
+input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.servo{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;font-size:13px;align-items:center}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:50%}
+.steps{list-style:none;margin:0;padding:0;font-size:13.5px}
+.steps li{padding:6px 8px;border-radius:8px;display:flex;gap:8px;color:var(--muted)}
+.steps li b{font-family:"JetBrains Mono",monospace;font-weight:600;width:16px;flex:none}
+.steps li.on{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--ink)}
+.counts{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px}
+.counts div{display:flex;gap:6px;align-items:center}
+.tbl{width:100%;border-collapse:collapse;font-size:14.5px}
+.tbl th,.tbl td{border-bottom:1px solid var(--line);padding:9px 8px;text-align:left;vertical-align:top}
+.tbl th{font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.tbl td.num,.tbl th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.scroll{overflow-x:auto}
+.tbl tfoot td{font-weight:700;border-bottom:none;font-size:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:860px){.grid2,.grid3{grid-template-columns:1fr}}
+.grid2>*,.grid3>*,.stage>*{min-width:0}
+a{color:var(--accent)}
+nav a{color:var(--ink)}
+pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;font-size:13px;line-height:1.5;margin:8px 0}
+code{font-family:"JetBrains Mono",monospace;font-size:.92em}
+.note{border-left:3px solid var(--accent);padding:8px 12px;background:color-mix(in srgb,var(--accent) 8%,transparent);border-radius:0 8px 8px 0;margin:12px 0;font-size:14.5px}
+.warn{border-left-color:var(--b4);background:color-mix(in srgb,var(--b4) 8%,transparent)}
+svg text{font-family:"Be Vietnam Pro",sans-serif}
+.wire-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;margin-top:8px}
+.wire-legend span{display:flex;align-items:center;gap:6px}
+.wire-legend i{width:22px;height:4px;border-radius:2px;display:inline-block}
+.total-big{font-size:28px;font-weight:700;letter-spacing:-.01em}
+.place h3{margin-top:0;display:flex;gap:8px;align-items:center}
+.place ul{margin:0;padding-left:18px;font-size:14.5px}
+.tag{font-size:12px;font-family:"JetBrains Mono",monospace;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,var(--accent) 16%,transparent)}
+/* assembly */
+.lbl{position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:600 12px "JetBrains Mono",monospace;display:flex;align-items:center;justify-content:center;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.lbl.dim{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.plist{list-style:none;margin:0;padding:0;font-size:13.5px;max-height:330px;overflow:auto}
+.plist li{padding:7px 8px;border-radius:8px;cursor:pointer;display:flex;gap:8px}
+.plist li b{font-family:"JetBrains Mono",monospace;width:20px;flex:none;color:var(--accent)}
+.plist li:hover{background:color-mix(in srgb,var(--line) 50%,transparent)}
+.plist li.on{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.stepbox{font-size:14.5px;min-height:110px}
+.stepbox b.t{display:block;font-size:15.5px;margin-bottom:4px}
+.calc{font-size:14.5px}
+.calc .mono{font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Thùng rác phân loại 4 ngăn: khay xoay + lật</h1>
+  <p>Mô phỏng 3D cơ chế đưa rác xuống 4 thùng bằng 2 servo SG90, khay nhỏ có cột đỡ chốt, vị trí đặt camera và siêu âm, cách lắp cụm thả rác, sơ đồ nối dây Raspberry Pi 4 và dự toán linh kiện.</p>
+</header>
+<nav>
+  <a href="#sim">Mô phỏng</a><a href="#place">Camera &amp; siêu âm</a><a href="#emptying">Đổ rác</a><a href="#dims">Kích thước</a><a href="#cut">Bản cắt</a><a href="#guide">Hướng dẫn lắp</a><a href="#unit">Cụm thả rác</a><a href="#ctrl">Điều khiển</a><a href="#hw">Nối dây</a><a href="#code">Phần mềm</a><a href="#bom">Dự toán</a>
+</nav>
+
+<!-- ============ SIM ============ -->
+<section id="sim">
+  <h2>Mô phỏng toàn máy</h2>
+  <div class="stage">
+    <div class="view" id="view">
+      <div class="hud">
+        <div class="chip" id="result">Chọn một loại rác để đặt vào khay</div>
+        <div class="chip mono" id="pwm">GPIO12 1500µs · GPIO13 1500µs</div>
+      </div>
+      <div class="hint">Kéo để xoay · cuộn để zoom</div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="btns" id="drops"></div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="primary" id="auto">▶ Tự động</button>
+          <button class="center" id="empty">Đổ rác</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row"><span>Tốc độ</span><input type="range" id="speed" min="0.3" max="2" step="0.1" value="1"></div>
+        <div class="row"><span>Độ đục vỏ</span><input type="range" id="shell" min="0" max="1" step="0.05" value="0.22"></div>
+        <div class="row"><span>Vùng nhìn camera / tia siêu âm</span><input type="checkbox" id="zones" checked></div>
+      </div>
+      <div class="card">
+        <div class="servo">
+          <span>Servo A (xoay)</span><div class="bar"><i id="barA"></i></div><span class="mono" id="valA">90°</span>
+          <span>Servo B (lật)</span><div class="bar"><i id="barB"></i></div><span class="mono" id="valB">90°</span>
+        </div>
+      </div>
+      <div class="card">
+        <ol class="steps" id="steps">
+          <li data-s="1"><b>1</b>Đặt rác qua cửa trước; HC-SR04 đo &lt; 12 cm, giữ yên 0,5 s</li>
+          <li data-s="2"><b>2</b>Bật LED trần, camera chụp 5 khung, chạy TFLite</li>
+          <li data-s="3"><b>3</b>Servo A xoay khay 45° / 135°</li>
+          <li data-s="4"><b>4</b>Servo B lật khay 45° / 135°</li>
+          <li data-s="5"><b>5</b>B về 90°, rồi A về 90°, ngắt xung</li>
+        </ol>
+      </div>
+      <div class="card counts" id="counts"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PLACEMENT ============ -->
+<section id="place">
+  <h2>Đặt camera và cảm biến siêu âm ở đâu</h2>
+  <p class="muted" style="max-width:820px">Phía trên khay là một <b>buồng chụp</b> bằng carton, mặt trong dán giấy trắng, kích thước trong khoảng 22 × 22 × 26 cm. Rác được đặt vào từ cửa trước, ngang mức khay, không thả rơi từ nóc xuống. Bật "Vùng nhìn camera / tia siêu âm" ở trên để xem vùng phủ của từng cảm biến.</p>
+  <div class="grid3">
+    <div class="card place">
+      <h3>Cửa nạp <span class="tag">mặt trước</span></h3>
+      <ul>
+        <li>Khoét cửa sổ 13 × 10 cm, mép dưới ngang mặt khay. Ở vị trí nghỉ khay nằm dọc trước–sau nên đầu khay hướng thẳng ra cửa.</li>
+        <li>Rác được đặt bằng tay, rơi chưa tới 2 cm, nên không vỡ, không nảy và thường nằm gần tâm khay.</li>
+        <li>Có thể dán một tấm rèm nhựa mềm (cắt từ túi nilon dày) để che bớt ánh sáng ngoài.</li>
+      </ul>
+    </div>
+    <div class="card place">
+      <h3>Camera <span class="tag">giữa trần</span></h3>
+      <ul>
+        <li>Đặt ở tâm trần, nhìn thẳng xuống, cách mặt khay <b>~18 cm</b>. OV5647 thấy được vùng khoảng 18 × 13 cm, phủ hết khay 16 × 12 cm. Xoay cạnh dài của ảnh dọc theo khay.</li>
+        <li>Ống kính OV5647 xoay được để chỉnh nét. Vặn cho nét ở khoảng 18 cm, vì mặc định nó lấy nét ở xa nên chụp gần sẽ bị mờ.</li>
+        <li>Không nằm trên đường đi của tay hay của rác. Cáp CSI đi dọc trần ra Pi ở vách sau.</li>
+      </ul>
+    </div>
+    <div class="card place">
+      <h3>HC-SR04 <span class="tag">vách sau, nằm ngang</span></h3>
+      <ul>
+        <li>Gắn ở tâm vách sau, cao hơn mặt khay <b>3 cm</b>, nghiêng lên khoảng 5°. Chiếu dọc trục khay về phía cửa.</li>
+        <li>Khoảng cách tới tâm khay chừng 11 cm. Khay trống thì tia đi xuyên ra cửa, đọc được trên 20 cm. Có rác thì đọc được 6–10 cm.</li>
+        <li>Mắt cảm biến cách tâm khoảng 9,6 cm, góc khay quét tới 10 cm nhưng thành khay chỉ cao 2 cm, thấp hơn mép dưới mắt cảm biến (cao hơn mặt khay 2,4 cm), nên không va. <b>Đừng làm thành khay cao quá 2 cm.</b></li>
+      </ul>
+    </div>
+  </div>
+  <div class="note">Với kích thước này <b>giữ nguyên</b> <code>"trigger_cm": 12</code> và <code>"clear_cm": 15</code> như trong <code>hardware.json</code> hiện tại. Chạy <code>python main.py --show-distance</code> để đo thử với vật nhỏ nhất (pin AA). Vật quá dẹt như tờ giấy phẳng có thể lọt dưới tia, nên giữ thêm <code>--keyboard</code> hoặc một nút bấm dự phòng.</div>
+  <div class="note"><b>Đèn:</b> dây <b>LED 5V USB, chip 2835, ánh sáng trắng (4000–6500K), loại không vỏ silicon</b>. Cắt 2 đoạn 10 cm dán trên trần, hai bên camera, phủ giấy can mờ để tán sáng. Đèn chiếu xiên từ hai phía nên không có bóng đổ cứng và không lóa vào ống kính. Đèn được bật/tắt qua <b>module MOSFET D4184 (hoặc AO3400)</b> nối GPIO27, chỉ sáng lúc chụp. Không dùng module IRF520, vì với 3,3V của Pi nó không đóng hẳn.</div>
+</section>
+
+<!-- ============ EMPTYING ============ -->
+<section id="emptying">
+  <h2>Đổ rác: lấy thùng ra thế nào</h2>
+  <p class="muted" style="max-width:820px">Bấm <b>"Đổ rác"</b> trong mô phỏng ở trên để xem cả quy trình. 4 thùng nằm ở 4 góc nên mỗi thùng có 2 mặt quay ra ngoài. Chỉ cần <b>2 cửa hông</b> là lấy được cả 4 thùng mà không phải tháo buồng chụp hay cụm servo.</p>
+  <div class="grid3">
+    <div class="card place">
+      <h3>Cửa hông <span class="tag">trái + phải</span></h3>
+      <ul>
+        <li>Mỗi cửa có 2 bản lề ở cạnh trước, mở ra khoảng 100°. Mép sau có nam châm hít để giữ cửa đóng.</li>
+        <li>Cửa trái lấy được <b>thùng 2 và 3</b>, cửa phải lấy được <b>thùng 1 và 4</b>.</li>
+        <li>Cửa chỉ cao bằng phần thùng (tầng dưới). Buồng chụp, camera và dây vẫn đứng yên.</li>
+      </ul>
+    </div>
+    <div class="card place">
+      <h3>Thùng trượt ra <span class="tag">kéo ra ngoài</span></h3>
+      <ul>
+        <li>Thùng kéo ra theo hướng xa trụ giữa nên không vướng ống trụ và khay.</li>
+        <li>Miệng thùng cách sàn ngăn phía trên ≥ 5 mm để trượt không bị kẹt.</li>
+        <li><b>Ke chặn chữ L</b> dán trên đáy (2 cạnh phía trong): đẩy thùng vào tới khi chạm ke là thùng đã nằm đúng dưới điểm rơi, không cần căn lại.</li>
+      </ul>
+    </div>
+    <div class="card place">
+      <h3>Túi lót <span class="tag">nhấc túi, không lật thùng</span></h3>
+      <ul>
+        <li>Lót túi nilon, lật mép túi ra ngoài miệng thùng và giữ bằng dây chun.</li>
+        <li>Khi đổ: thắt miệng túi, nhấc ra, lót túi mới. Thùng không bẩn và không phải lật ngược.</li>
+        <li>Thùng nguy hại (pin) nên dùng hộp nhỏ, đổ ít lần hơn và mang đến điểm thu gom pin.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="note warn"><b>An toàn khi đổ (tùy chọn, ~10k):</b> gắn 1 công tắc lưỡi gà (reed) + nam châm ở mỗi cửa, nối song song vào <b>GPIO16 (pin 36)</b>, dùng <code>gpiozero.Button(16)</code>. Khi một cửa mở, <code>Controller</code> bỏ qua trigger và để servo ở trạng thái <code>detach</code>, để khay không lật lúc tay đang ở trong thùng. Đóng cửa thì máy chạy lại.</div>
+</section>
+
+<!-- ============ DIMENSIONS ============ -->
+<section id="dims">
+  <h2>Kích thước đề xuất</h2>
+  <p class="muted" style="max-width:820px">Cả máy nằm gọn trong một thùng carton cỡ <b>30 × 30 × 45 cm</b> (thùng nồi cơm hoặc thùng đựng đồ cỡ trung, xin ở tạp hóa). Mọi kích thước dưới đây xuất phát từ khay 16 cm, là chiều dài lớn nhất mà SG90 còn lật được an toàn.</p>
+  <div class="card scroll">
+    <svg id="sideView" viewBox="0 20 780 550" style="width:100%;min-width:620px;height:auto" role="img" aria-label="Mặt cắt cạnh có ghi kích thước"></svg>
+    <p class="muted" style="font-size:13.5px;margin:6px 0 0">Mặt cắt nhìn từ bên phải, cửa nạp ở bên phải hình. Đơn vị cm.</p>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card scroll">
+      <table class="tbl">
+        <thead><tr><th>Kích thước</th><th class="num">Giá trị</th><th>Vì sao chọn số này</th></tr></thead>
+        <tbody>
+          <tr><td>Khay</td><td class="num mono">16 × 12 × 2</td><td>Mỗi bên trục dài 8 cm. Rác 150 g ở đầu khay cần 1,2 kg·cm, SG90 có 1,8 kg·cm. Rộng 12 cm để vừa ly nhựa, giấy vo; bề rộng nằm dọc trục lật nên không làm servo nặng thêm</td></tr>
+          <tr><td>Thùng (gấp từ carton)</td><td class="num mono">11 × 11 × 14</td><td>Chứa khoảng 1,7 L, đủ cho demo. Miệng thùng phủ điểm rơi ±3 cm</td></tr>
+          <tr><td>Tâm thùng cách trục</td><td class="num mono">7,7 (mỗi phương)</td><td>Khe giữa 4 thùng rộng 4 cm, vừa cột 3 cm</td></tr>
+          <tr><td>Tầng thùng (vỏ dưới)</td><td class="num mono">28 × 28 × 16</td><td>Thùng cao 14 cm + 2 cm khe để kéo thùng ra</td></tr>
+          <tr><td>Trục lật cách đế</td><td class="num mono">22,7</td><td>Khi lật 45°, đầu khay hạ 5,7 cm và vẫn cao hơn miệng thùng khoảng 1 cm</td></tr>
+          <tr><td>Cột đỡ servo A</td><td class="num mono">3 × 3 × 15</td><td>Servo A cao 2,3 cm, tấm + miếng kê + trục servo B cao 4 cm, cộng lại vừa đủ 22,7</td></tr>
+          <tr><td>Buồng chụp (lòng trong)</td><td class="num mono">22 × 22 × 26</td><td>Góc khay quét bán kính 10 cm, servo B nằm ở bán kính 9 cm. Vách cách trục 11 cm, còn dư khoảng 1 cm</td></tr>
+          <tr><td>Camera cách mặt khay</td><td class="num mono">19</td><td>OV5647 thấy được khoảng 19 × 14 cm, phủ hết khay 16 × 12 cm</td></tr>
+          <tr><td>Cửa nạp</td><td class="num mono">13 × 10</td><td>Vừa tay cầm rác. Mép dưới ngang mặt khay</td></tr>
+          <tr><td>HC-SR04 (vách sau)</td><td class="num mono">cao hơn khay 3</td><td>Cách tâm khay 11 cm, nên giữ nguyên <code>trigger_cm</code> 12</td></tr>
+          <tr><td><b>Tổng</b></td><td class="num mono"><b>30 × 30 × 42</b></td><td>Vừa 1 thùng carton 30 × 30 × 45</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <b>Giới hạn rác bỏ vào</b>
+      <ul style="padding-left:18px;margin:8px 0 12px;font-size:14.5px">
+        <li><b>Dài ≤ 14 cm, nặng ≤ 150 g.</b> Phù hợp: lon 330 ml (12 cm), chai nhựa nhỏ 250–330 ml, giấy vo, pin, vỏ trái cây, ly nhựa bóp dẹp.</li>
+        <li><b>Chai 500 ml (~21 cm) không vừa.</b> Chai dài hơn khay nên sẽ chúc đầu và rơi lệch thùng.</li>
+      </ul>
+      <b>Muốn bỏ được chai 500 ml thì phóng to ×1,25</b>
+      <ul style="padding-left:18px;margin:8px 0 12px;font-size:14.5px">
+        <li>Khay 20 cm, thùng 14 cm, buồng chụp 28 cm, tổng khoảng 37 × 37 × 52 cm.</li>
+        <li>Rác 150 g ở 10 cm cần 1,5 kg·cm, SG90 chỉ dư khoảng 1,2 lần nên quá sát. Phải đổi sang <b>MG90S</b> (2,2 kg·cm, ~40k/con).</li>
+      </ul>
+      <b>Cắt từ 1 tấm Formex 3 mm khổ A4</b>
+      <ul style="padding-left:18px;margin:8px 0 0;font-size:14.5px" class="mono">
+        <li>Tấm nối 3 × 17</li>
+        <li>Miếng kê servo B 2,5 × 1,6 × 1 (dán 3 lớp)</li>
+        <li>Cột đỡ chốt 1,6 × 3,3 × 2 miếng</li>
+        <li>Đệm đỉnh cột 3,5 × 3,5</li>
+        <li>Gá camera 5 × 5, khoét lỗ Ø8</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CUT LIST ============ -->
+<section id="cut">
+  <h2>Bản cắt vật liệu</h2>
+  <p class="muted" style="max-width:860px">Tất cả các tấm carton xếp vừa trên <b>1 tấm bìa carton 3 lớp khổ 70 × 120 cm</b>, nên mua tấm 80 × 120 cm (dư 10 cm làm nẹp, ke góc). Bìa tấm bán ở tiệm văn phòng phẩm và vựa ve chai, hoặc bung 2 thùng carton cũ cỡ lớn. Kích thước dưới đây đã tính bìa dày khoảng 0,5 cm.</p>
+  <div class="card scroll">
+    <svg id="nestView" viewBox="0 0 1240 860" style="width:100%;min-width:680px;height:auto" role="img" aria-label="Sơ đồ xếp các tấm trên bìa carton 80 x 120"></svg>
+    <p class="muted" style="font-size:13.5px;margin:6px 0 0">Sơ đồ xếp hình trên tấm 80 × 120 cm. Đường đứt là nếp gấp, vùng gạch chéo là phần khoét bỏ. Phần khoét 22 × 22 ở giữa sàn ngăn dùng lại làm trần buồng chụp.</p>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="card scroll">
+      <b>Carton 3 lớp</b>
+      <table class="tbl" style="margin-top:6px">
+        <thead><tr><th>#</th><th>Tấm</th><th class="num">Kích thước</th><th class="num">SL</th><th>Ghi chú cắt</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">L</td><td>Vách trước + sau tầng thùng</td><td class="num mono">28 × 16</td><td class="num">2</td><td>Cố định vào đế</td></tr>
+          <tr><td class="mono">D</td><td>Cửa hông trái + phải</td><td class="num mono">28 × 16</td><td class="num">2</td><td>Bản lề bằng băng keo vải ở cạnh trước</td></tr>
+          <tr><td class="mono">S</td><td>Sàn ngăn</td><td class="num mono">28 × 28</td><td class="num">1</td><td>Khoét lỗ 22 × 22 ở giữa (cách mép 3 cm)</td></tr>
+          <tr><td class="mono">T</td><td>Trần buồng chụp</td><td class="num mono">22 × 22</td><td class="num">1</td><td>Chính là miếng khoét ra từ sàn ngăn. Đục lỗ Ø1 cm cho cáp camera</td></tr>
+          <tr><td class="mono">C1</td><td>Vách trước buồng chụp</td><td class="num mono">23 × 26</td><td class="num">1</td><td>Khoét cửa 13 × 10, căn giữa, mép dưới cách đáy vách 6,2 cm</td></tr>
+          <tr><td class="mono">C2</td><td>Vách sau buồng chụp</td><td class="num mono">23 × 26</td><td class="num">1</td><td>HC-SR04 gắn mặt trong, tâm cao 9 cm. Pi gắn mặt ngoài</td></tr>
+          <tr><td class="mono">C3</td><td>Vách hông buồng chụp</td><td class="num mono">22 × 26</td><td class="num">2</td><td>Kẹp giữa vách trước và vách sau, nên lòng trong còn 22 × 22</td></tr>
+          <tr><td class="mono">B</td><td>Thân thùng (dải gấp)</td><td class="num mono">45 × 14</td><td class="num">4</td><td>Gấp tại 11 – 22 – 33 – 44 cm, phần 1 cm cuối là mép dán</td></tr>
+          <tr><td class="mono">b</td><td>Đáy thùng</td><td class="num mono">11 × 11</td><td class="num">4</td><td>Dán keo nến vào đáy thân thùng</td></tr>
+        </tbody>
+        <tfoot><tr><td></td><td colspan="2">Tổng diện tích dùng</td><td class="num" colspan="2">≈ 0,79 m²</td></tr></tfoot>
+      </table>
+    </div>
+    <div class="card scroll">
+      <b>Formex / PVC 3 mm</b>
+      <table class="tbl" style="margin-top:6px">
+        <thead><tr><th>Tấm</th><th class="num">Kích thước</th><th class="num">SL</th><th>Ghi chú</th></tr></thead>
+        <tbody>
+          <tr><td>Tấm nối (trên servo A)</td><td class="num mono">3 × 17</td><td class="num">1</td><td>Vít tay servo A vào giữa tấm</td></tr>
+          <tr><td>Miếng kê servo B</td><td class="num mono">2,5 × 1,6</td><td class="num">3</td><td>Dán chồng 3 lớp, dày khoảng 1 cm</td></tr>
+          <tr><td>Cột đỡ chốt</td><td class="num mono">1,6 × 3,3</td><td class="num">2</td><td>Dán đôi, khoan lỗ Ø3 cách đỉnh 0,6 cm</td></tr>
+          <tr><td>Đệm đỉnh cột</td><td class="num mono">3,5 × 3,5</td><td class="num">1</td><td>Để servo A bám chắc lên cột</td></tr>
+          <tr><td>Gá camera</td><td class="num mono">5 × 5</td><td class="num">1</td><td>Khoét lỗ Ø8 mm cho ống kính</td></tr>
+          <tr><td>Gá HC-SR04</td><td class="num mono">5 × 2,5</td><td class="num">1</td><td>Dán vuông góc vào vách sau</td></tr>
+        </tbody>
+        <tfoot><tr><td colspan="2">Tổng</td><td class="num" colspan="2">≈ 120 cm² (1 tấm A4 dư nhiều)</td></tr></tfoot>
+      </table>
+
+      <b style="display:block;margin-top:16px">Vật liệu khác</b>
+      <table class="tbl" style="margin-top:6px">
+        <tbody>
+          <tr><td>Đế</td><td class="num mono">30 × 30</td><td>MDF 3–5 mm, hoặc 3 lớp carton dán chồng</td></tr>
+          <tr><td>Khay</td><td class="num mono">16 × 12 × 2</td><td>Hộp nhựa cắt bỏ 2 đầu, hoặc bìa hồ sơ nhựa PP gấp 2 mép</td></tr>
+          <tr><td>Cột đỡ servo A</td><td class="num mono">3 × 3 × 15</td><td>Gỗ vụn, hoặc ống giấy cứng nhồi bìa</td></tr>
+          <tr><td>Lót trắng buồng chụp</td><td class="num mono">≈ 0,28 m²</td><td>4 vách 22 × 26 + trần, khoảng <b>5 tờ A4</b> giấy trắng hoặc decal</td></tr>
+          <tr><td>Giấy can tán sáng đèn</td><td class="num mono">2 × (12 × 3)</td><td>Dán trên 2 đoạn LED</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;font-size:14.5px">
+    <b>Cần mua:</b> 1 tấm bìa carton 3 lớp 80 × 120 cm (~15k, hoặc 2 thùng cũ: 0đ) · 1 tấm Formex 3 mm khổ A4 (~15k) · 1 tấm MDF 30 × 30 cm (~20k, có thể bỏ) · 5 tờ giấy trắng A4. <b>Tổng khoảng 50k</b> cho phần vỏ và kết cấu.
+    <div class="muted" style="margin-top:6px">Cắt carton bằng dao rọc giấy dọc thước sắt. Rạch 2–3 lượt nhẹ thay vì một lượt mạnh. Ở các nếp gấp của dải thân thùng, chỉ rạch nhẹ lớp mặt ngoài rồi gấp.</div>
+  </div>
+</section>
+
+<!-- ============ BUILD GUIDE ============ -->
+<section id="guide">
+  <h2>Hướng dẫn lắp toàn máy từng bước</h2>
+  <p class="muted" style="max-width:860px">12 bước, lắp từ đế lên trần rồi mới đi dây và cân chỉnh. Bấm <b>"Bước ▶"</b> để xem chi tiết mới bay vào đúng chỗ (tô màu cam), kéo chuột để xoay xem. Kích thước từng tấm có trong mục <a href="#cut">Bản cắt</a>.</p>
+  <div class="stage">
+    <div class="view" id="guideView">
+      <div class="hud"><div class="chip" id="gTitle">Toàn máy</div><div class="chip mono" id="gCount">0 / 12</div></div>
+      <div class="hint">Kéo để xoay · cuộn để zoom</div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <button class="center" id="gPrev">◀ Bước</button>
+          <button class="center" id="gNext">Bước ▶</button>
+          <button class="center" id="gAll">Tổng</button>
+        </div>
+        <button class="primary" id="gReplay" style="width:100%;margin-top:8px">↻ Xem lại bước này</button>
+        <div class="row" style="margin-top:10px"><span>Độ trong vỏ carton</span><input type="range" id="gOpacity" min="0.1" max="1" step="0.05" value="0.55"></div>
+      </div>
+      <div class="card"><ul class="plist" id="gList" style="max-height:420px"></ul></div>
+    </div>
+  </div>
+  <div class="card" id="gDetail" style="margin-top:14px;font-size:14.5px"></div>
+</section>
+
+<!-- ============ UNIT ============ -->
+<section id="unit">
+  <h2>Cụm thả rác: linh kiện và các bước lắp</h2>
+  <div class="stage">
+    <div class="view" id="asmView">
+      <div class="hud"><div class="chip" id="asmTitle">Tổng quan: kéo thanh "Tháo rời" để tách các chi tiết</div></div>
+      <div class="hint">Kéo để xoay · cuộn để zoom</div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="row"><span>Tháo rời</span><input type="range" id="explode" min="0" max="1" step="0.01" value="0.65"></div>
+        <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <button class="center" id="prev">◀ Bước</button>
+          <button class="center" id="next">Bước ▶</button>
+          <button class="center" id="overview">Tổng</button>
+        </div>
+        <button class="primary" id="asmTest" style="width:100%;margin-top:8px">Chạy thử 4 thùng</button>
+      </div>
+      <div class="card stepbox" id="stepBox"></div>
+      <div class="card"><ul class="plist" id="plist"></ul></div>
+    </div>
+  </div>
+
+  <h3>Bảng chi tiết cụm thả</h3>
+  <div class="card scroll">
+    <table class="tbl">
+      <thead><tr><th>#</th><th>Chi tiết</th><th>Quy cách</th><th>Vai trò / lưu ý</th></tr></thead>
+      <tbody id="unitRows"></tbody>
+    </table>
+  </div>
+
+  <h3>Vật liệu nhẹ, rẻ</h3>
+  <div class="card scroll">
+    <table class="tbl">
+      <thead><tr><th>Bộ phận</th><th>Dùng gì</th><th>Lý do</th></tr></thead>
+      <tbody>
+        <tr><td><b>Khay</b></td><td>Hộp nhựa đựng thực phẩm / hộp bút cắt bỏ 2 đầu, hoặc bìa hồ sơ nhựa PP gấp mép</td><td>Nặng 10–20 g, mặt trơn, không thấm nước</td></tr>
+        <tr><td><b>Tấm nối, miếng kê, cột đỡ chốt</b></td><td>Formex 3 mm (mẩu nhỏ), que kem dán đôi</td><td>Đây là chỗ bắt vít, nên không dùng carton vì vít sẽ lỏng dần</td></tr>
+        <tr><td><b>Cột đỡ servo A</b></td><td>Lõi cuộn băng keo / ống giấy cứng nhồi bìa, hoặc khúc gỗ vụn 3 × 3 cm</td><td>Chỉ chịu khoảng 200 g</td></tr>
+        <tr><td><b>Buồng chụp + vỏ + sàn ngăn</b></td><td>Thùng carton 2–3 lớp (thùng mì, thùng bia), mặt trong dán giấy trắng</td><td>Miễn phí. Mặt trong trắng làm nền ảnh tốt</td></tr>
+        <tr><td><b>Bản lề cửa hông</b></td><td>Băng keo vải</td><td>Bền, không cần bản lề kim loại</td></tr>
+        <tr><td><b>4 thùng chứa</b></td><td>Gấp từ carton (dải 45 × 14 + đáy 11 × 11), hoặc hộp nhựa vuông ~1,5 L; lót túi nilon</td><td>Cắt chung trên tấm bìa, đúng cỡ</td></tr>
+        <tr><td><b>Đế</b></td><td>MDF 3 mm 30 × 30 cm, hoặc 3 lớp carton dán chồng</td><td>Cần phẳng và nặng để máy không lắc</td></tr>
+      </tbody>
+    </table>
+    <p class="muted" style="font-size:13.5px;margin:8px 0 0">Gia cố các góc carton bằng que kem hoặc đũa tre dán keo nến. Mặt carton gần thùng rác thực phẩm thì dán băng keo trong để chống ẩm.</p>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="card calc">
+      <b>Kiểm tra lực servo (SG90: 1,8 kg·cm)</b>
+      <ul style="padding-left:18px;margin:8px 0 0">
+        <li><b>Servo B (lật):</b> tình huống nặng nhất là rác 150 g trượt ra tới đầu khay, cách trục 8 cm. Lực cần là <span class="mono">0,15 kg × 8 cm = 1,2 kg·cm</span>, SG90 <b>dư khoảng 1,5 lần</b>. Khay cân bằng quanh trục nên khi trống gần như không tốn lực.</li>
+        <li><b>Servo A (xoay):</b> phần đè lên trục gồm servo B 9 g + khay 20 g + tấm và cột đỡ 15 g + rác ≤ 150 g, tổng khoảng 0,2 kg. Nhờ có cột đỡ chốt, trục servo B không còn bị khay kéo lệch.</li>
+        <li><b>Giới hạn:</b> chỉ dùng cho rác <b>≤ 150 g</b> như chai nhựa rỗng, lon, giấy, pin, vỏ trái cây. Muốn chịu nặng hơn thì thay bằng <b>MG90S</b> (cùng cỡ, bánh răng kim loại), không cần sửa gì khác.</li>
+      </ul>
+    </div>
+    <div class="card calc">
+      <b>4 điểm phải căn đúng</b>
+      <ul style="padding-left:18px;margin:8px 0 0">
+        <li><b>Tâm khay nằm đúng trên trục servo A.</b> Đo trước rồi mới dán servo B. Nếu lệch, khay quét rộng hơn và rác rơi lệch thùng.</li>
+        <li><b>Trục servo B cao ≥ 2,5 cm so với tấm nối</b> (nhờ miếng kê 1 cm). Khi lật 45–60°, đáy khay không chạm tấm.</li>
+        <li><b>Chốt phải thẳng hàng với trục servo B.</b> Xỏ chốt vào khay trước, rồi mới dán cột đỡ. Nếu lệch, khay bị vặn và servo phải gồng, kêu rè.</li>
+        <li><b>Lắp tay servo khi servo đang ở 90°:</b> khay nằm ngang và dọc theo phương trước–sau. Sai một răng (khoảng 14°) thì chỉnh lại bằng <code>tools/calibrate.py</code>.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTROL ============ -->
+<section id="ctrl">
+  <h2>Điều khiển thả rác chi tiết</h2>
+  <div class="card scroll">
+    <svg id="timing" viewBox="0 0 960 360" style="width:100%;min-width:760px;height:auto" role="img" aria-label="Biểu đồ thời gian một lượt thả rác"></svg>
+    <p class="muted" style="font-size:13.5px;margin:6px 0 0">Một lượt thả vào thùng 1 (A 45°, B 45°). Mốc thời gian lấy từ <code>hardware.json</code> và <code>app.json</code>, thời gian suy luận ước tính ~150 ms trên Pi 4. Đường nét đứt nghĩa là đã ngắt xung (<code>detach</code>): servo đứng yên nhờ ma sát hộp số, không rung và không nóng.</p>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <b>Xung PWM điều khiển servo</b>
+      <ul style="padding-left:18px;margin:8px 0 0;font-size:14.5px">
+        <li>Tần số 50 Hz (chu kỳ 20 ms). Độ rộng xung quyết định góc: <span class="mono">t = 500 + góc/180 × 2000 µs</span>.</li>
+        <li>45° = 1000 µs · 90° = 1500 µs · 135° = 2000 µs. SG90 clone thường chỉ nhận 500–2400 µs và lệch 5–10°, nên dò lại góc bằng <code>tools/calibrate.py</code>.</li>
+        <li>GPIO12 (PWM0) cho servo A, GPIO13 (PWM1) cho servo B. Dùng <code>pigpio</code> để xung do DMA tạo ra, ổn định và không giật.</li>
+        <li>Dây servo: <b>nâu</b> GND · <b>đỏ</b> 5V (adapter riêng) · <b>cam</b> tín hiệu.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <b>Quy tắc an toàn trong trình tự</b>
+      <ol style="padding-left:18px;margin:8px 0 0;font-size:14.5px">
+        <li>Chỉ <b>lật khi đã xoay xong</b> (chờ <code>route_ms</code>), và chỉ <b>xoay về khi khay đã nằm ngang</b>. Nếu không, đầu khay có thể quét vào thành thùng.</li>
+        <li>Không bao giờ cho 2 servo chạy cùng lúc. Nhờ vậy dòng đỉnh luôn &lt; 1 A, adapter 5V 2A là dư.</li>
+        <li>Khi có lỗi: <code>_rest()</code> đưa cả hai servo về 90° rồi mới báo lỗi (code hiện tại đã làm vậy).</li>
+        <li>Khi khởi động: đưa servo về 90°/90° trước khi nhận vật, vì servo có thể nằm ở góc bất kỳ sau lần tắt nguồn.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WIRING ============ -->
+<section id="hw">
+  <h2>Nối dây với Raspberry Pi 4</h2>
+  <div class="card scroll">
+    <svg viewBox="0 0 960 560" style="width:100%;min-width:720px;height:auto" role="img" aria-label="Sơ đồ nối dây">
+      <defs><style>
+        .blk{fill:var(--panel);stroke:var(--ink);stroke-width:1.5}
+        .t{fill:var(--ink);font-size:14px;font-weight:600}
+        .s{fill:var(--muted);font-size:12px}
+        .p{fill:var(--ink);font-size:11.5px;font-family:"JetBrains Mono",monospace}
+        .w{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+        .v5{stroke:var(--w5v)} .g{stroke:var(--wgnd)} .sg{stroke:var(--wsig)} .v3{stroke:var(--w33)}
+      </style></defs>
+      <rect class="blk" x="360" y="20" width="250" height="64" rx="8"/>
+      <text class="t" x="375" y="45">Adapter 5V 2A (riêng cho servo)</text>
+      <text class="s" x="375" y="66">+ tụ 1000µF song song ở đầu ra</text>
+      <rect class="blk" x="360" y="170" width="250" height="250" rx="10" style="fill:color-mix(in srgb,#2e9e5b 14%,var(--panel))"/>
+      <text class="t" x="375" y="196">Raspberry Pi 4</text>
+      <text class="s" x="375" y="214">GPIO (BCM) · số chân vật lý</text>
+      <text class="p" x="375" y="246">5V ······ pin 2</text>
+      <text class="p" x="375" y="268">GND ····· pin 6/9/39</text>
+      <text class="p" x="375" y="290">GPIO23 ·· pin 16 TRIG</text>
+      <text class="p" x="375" y="312">GPIO24 ·· pin 18 ECHO</text>
+      <text class="p" x="375" y="334">GPIO5 ··· pin 29 LED xanh</text>
+      <text class="p" x="375" y="356">GPIO6 ··· pin 31 LED đỏ</text>
+      <text class="p" x="375" y="378">GPIO26 ·· pin 37 Còi</text>
+      <text class="p" x="375" y="400">GPIO27 ·· pin 13 Đèn</text>
+      <text class="p" x="530" y="246">pin 32</text><text class="s" x="530" y="262">GPIO12</text>
+      <text class="p" x="530" y="300">pin 33</text><text class="s" x="530" y="316">GPIO13</text>
+      <rect class="blk" x="740" y="120" width="190" height="70" rx="8"/>
+      <text class="t" x="755" y="146">Servo A: SG90</text><text class="s" x="755" y="166">xoay khay · PWM0</text>
+      <rect class="blk" x="740" y="230" width="190" height="70" rx="8"/>
+      <text class="t" x="755" y="256">Servo B: SG90</text><text class="s" x="755" y="276">lật khay · PWM1</text>
+      <path class="w v5" d="M610 40 H700 V140 H740"/><path class="w v5" d="M700 140 V250 H740"/>
+      <path class="w g" d="M610 64 H680 V170 H740"/><path class="w g" d="M680 170 V280 H740"/>
+      <path class="w g" d="M485 84 V170"/><text class="s" x="492" y="130">GND chung (bắt buộc)</text>
+      <path class="w sg" d="M610 255 H660 V155 H740"/><path class="w sg" d="M610 308 H720 V265 H740"/>
+      <rect class="blk" x="30" y="40" width="220" height="110" rx="8"/>
+      <text class="t" x="45" y="66">HC-SR04 (vách sau)</text>
+      <text class="s" x="45" y="86">VCC 5V · TRIG trực tiếp</text>
+      <text class="s" x="45" y="104">ECHO → chia áp 1kΩ / 2kΩ</text>
+      <text class="s" x="45" y="122">(5V → 3.3V, tránh cháy GPIO)</text>
+      <path class="w v5" d="M250 60 H300 V242 H360"/><path class="w g" d="M250 80 H290 V264 H360"/>
+      <path class="w sg" d="M250 115 H320 V286 H360"/><path class="w v3" d="M250 135 H330 V308 H360"/>
+      <rect class="blk" x="30" y="300" width="220" height="110" rx="8"/>
+      <text class="t" x="45" y="326">LED xanh / đỏ + còi</text>
+      <text class="s" x="45" y="346">LED nối tiếp R 220Ω</text>
+      <text class="s" x="45" y="364">Còi active 3.3–5V; nếu 5V</text>
+      <text class="s" x="45" y="382">thì đóng ngắt qua 2N2222</text>
+      <path class="w sg" d="M250 330 H360"/><path class="w sg" d="M250 352 H360"/><path class="w sg" d="M250 374 H360"/>
+      <rect class="blk" x="740" y="350" width="190" height="80" rx="8"/>
+      <text class="t" x="755" y="376">LED dây 5V (trần)</text>
+      <text class="s" x="755" y="396">qua module MOSFET D4184</text>
+      <text class="s" x="755" y="414">chỉ bật lúc chụp</text>
+      <path class="w sg" d="M610 396 H740"/>
+      <rect class="blk" x="360" y="470" width="250" height="64" rx="8"/>
+      <text class="t" x="375" y="496">Camera OV5647 (CSI, giữa trần)</text>
+      <text class="s" x="375" y="516">cáp CSI 30 cm dọc trần ra vách sau</text>
+      <path class="w g" d="M485 420 V470" style="stroke-dasharray:6 5"/>
+    </svg>
+    <div class="wire-legend">
+      <span><i style="background:var(--w5v)"></i>5V</span><span><i style="background:var(--wgnd)"></i>GND</span>
+      <span><i style="background:var(--wsig)"></i>Tín hiệu GPIO</span><span><i style="background:var(--w33)"></i>ECHO sau chia áp (3.3V)</span>
+    </div>
+  </div>
+  <div class="note warn"><b>Không cấp nguồn servo từ chân 5V của Pi.</b> Mỗi SG90 kéo khoảng 0,5 A khi chạy và tới 0,7 A khi bị kẹt. Xung dòng lúc khởi động gây sụt áp, làm Pi reset hoặc hỏng thẻ nhớ. Dùng adapter riêng và nối chung GND với Pi.</div>
+</section>
+
+<!-- ============ CODE ============ -->
+<section id="code">
+  <h2>Phần mềm: thay đổi so với bản 3 thùng</h2>
+  <div class="grid2">
+    <div>
+      <h3>config/bins.json</h3>
+<pre><code>{
+  "bins": [
+    {"id":1,"name":"Rác tái chế",  "rotate":45, "tilt":45,
+     "classes":["plastic","metal","paper","cardboard"]},
+    {"id":2,"name":"Rác thực phẩm","rotate":135,"tilt":45,
+     "classes":["biological"]},
+    {"id":3,"name":"Rác thải khác","rotate":45, "tilt":135,
+     "classes":["trash","clothes","shoes","glass"]},
+    {"id":4,"name":"Rác nguy hại", "rotate":135,"tilt":135,
+     "classes":["battery"]}
+  ],
+  "confident_threshold": 0.6,
+  "uncertain_bin": 3
+}</code></pre>
+      <h3>config/hardware.json (chỉ đổi các dòng này)</h3>
+<pre><code>"chute_rest_angle": 90,
+"tray_rest_angle": 90,    // trước là 0: khay giờ nằm ngang ở giữa
+"servo_max_pulse_ms": 2.4 // SG90 clone; dò lại bằng calibrate.py
+// trigger_cm 12 / clear_cm 15 giữ nguyên: siêu âm cách tâm khay ~11 cm</code></pre>
+      <h3>Cài pigpio cho xung ổn định</h3>
+<pre><code>sudo apt install pigpio python3-pigpio
+sudo systemctl enable --now pigpiod
+export GPIOZERO_PIN_FACTORY=pigpio   # thêm vào file service systemd</code></pre>
+    </div>
+    <div>
+      <h3>controller.py → _drop()</h3>
+<pre><code>def _drop(self, d):
+    self._set("ROUTE")
+    self.act.set_chute(d.rotate)       # servo A: 45 / 135
+    self._sleep_ms("route_ms")         # 600 ms
+
+    self._set("DROP")
+    self.act.set_tray(d.tilt)          # servo B: 45 / 135
+    self._sleep_ms("drop_ms")          # 800 ms cho rác trượt hết
+    self.act.set_tray(self.hw["tray_rest_angle"])   # về ngang TRƯỚC
+    self._sleep_ms("after_drop_ms")    # 400 ms
+    self.act.ok_blink()
+    return "BIN"
+# sau đó process_one() gọi _rest(): A về 90°, chờ 0,5 s, detach</code></pre>
+      <p class="muted" style="font-size:14px"><code>Decision</code> trong <code>decider.py</code> đổi trường <code>angle</code> thành 2 trường <code>rotate</code>, <code>tilt</code> lấy từ <code>bins.json</code>. Nếu vẫn muốn từ chối pin như hiện tại, giữ mục <code>reject</code> và dùng thùng 4 cho thủy tinh.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BOM ============ -->
+<section id="bom">
+  <h2>Dự toán linh kiện (bản tiết kiệm)</h2>
+  <p class="muted">Giá tham khảo Shopee / Hshop / chợ Nhật Tảo, cuối 2026, đơn vị nghìn đồng. Tích "Đã có" để trừ khỏi tổng.</p>
+  <div class="card scroll">
+    <table class="tbl" id="bomTbl">
+      <thead><tr><th>Đã có</th><th>Linh kiện</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th>Ghi chú tiết kiệm</th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td></td><td colspan="3">Tổng cần mua</td><td class="num" id="bomTotal"></td><td class="muted" style="font-weight:400;font-size:13.5px">Dùng webcam USB cũ thì bớt thêm 110k</td></tr></tfoot>
+    </table>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card"><div class="muted" style="font-size:13px">Cần mua thêm nếu đã có Pi, thẻ nhớ, nguồn Pi</div><div class="total-big" id="bigTotal"></div></div>
+    <div class="card" style="font-size:14.5px"><b>Những khoản không cần mua:</b> PCA9685 (Pi có sẵn 2 kênh PWM cứng), động cơ bước + driver + công tắc hành trình (đã có 2 servo), Pi 5, module relay và IRF520 (dùng module MOSFET D4184 / AO3400 là đủ).</div>
+  </div>
+</section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const DEG = Math.PI/180;
+const BINS = [
+  {id:1,name:"Rác tái chế",  short:"Tái chế",  color:"#2f6fd6",rot:45, tilt:45, classes:"plastic, metal, paper, cardboard"},
+  {id:2,name:"Rác thực phẩm",short:"Thực phẩm",color:"#2e9e5b",rot:135,tilt:45, classes:"biological"},
+  {id:3,name:"Rác thải khác",short:"Khác",     color:"#6b7280",rot:45, tilt:135,classes:"trash, clothes, shoes, glass, không chắc"},
+  {id:4,name:"Rác nguy hại", short:"Nguy hại", color:"#d9472b",rot:135,tilt:135,classes:"battery"},
+];
+const ITEMS = [
+  {label:"Chai nhựa",cls:"plastic",bin:1,kind:"bottle"},{label:"Lon nhôm",cls:"metal",bin:1,kind:"can"},
+  {label:"Vỏ chuối",cls:"biological",bin:2,kind:"banana"},{label:"Lõi táo",cls:"biological",bin:2,kind:"apple"},
+  {label:"Giấy vo",cls:"trash",bin:3,kind:"crumple"},{label:"Mảnh kính",cls:"glass",bin:3,kind:"glass"},
+  {label:"Pin AA",cls:"battery",bin:4,kind:"battery"},{label:"Pin vuông",cls:"battery",bin:4,kind:"battery9"},
+];
+/* scale: 1 đơn vị = 16 cm */
+
+/* ---------------- shared helpers ---------------- */
+const M = (c,o={})=> new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.6,metalness:.05},o));
+function box(w,h,d,mat,x,y,z,parent){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(x,y,z);
+  m.castShadow=m.receiveShadow=true; parent.add(m); return m;
+}
+function cyl(rt,rb,h,mat,x,y,z,parent,seg=24){
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat); m.position.set(x,y,z);
+  m.castShadow=m.receiveShadow=true; parent.add(m); return m;
+}
+function sceneBg(){ return new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue("--scene").trim()||"#e9e7e1"); }
+function setupView(el, camPos, target){
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  el.appendChild(renderer.domElement);
+  const scene=new THREE.Scene(); scene.background=sceneBg();
+  const camera=new THREE.PerspectiveCamera(38,1,0.05,100); camera.position.set(...camPos);
+  const controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.target.set(...target); controls.enableDamping=true; controls.maxPolarAngle=Math.PI*0.53;
+  scene.add(new THREE.HemisphereLight(0xffffff,0x444444,0.75));
+  const sun=new THREE.DirectionalLight(0xffffff,0.85); sun.position.set(4,8,5); sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-4,right:4,top:5,bottom:-4});
+  scene.add(sun);
+  const v={el,renderer,scene,camera,controls};
+  new ResizeObserver(()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}).observe(el);
+  return v;
+}
+
+/* ---------------- drop unit (cụm thả, 2 × SG90, servo B chồng lên servo A, có cột đỡ + chốt) ---------------- */
+const TL=1.0, TW=0.75, TRAY_TOP=-0.03, YAW_Y=0.23, TILT_Y=0.17;
+const UNIT_PARTS = [
+  {n:"Cột đỡ servo A", spec:"Ống giấy cứng / lõi cuộn băng keo nhồi bìa, hoặc khúc gỗ 3 × 3 × 15 cm", role:"Đỡ servo A ở tâm 4 thùng. Chỉ chịu khoảng 200 g nên không cần vật liệu khỏe. Dây servo cột dọc thân cột.",
+   step:"Dán đáy cột vào đúng tâm đế bằng keo nến, chèn 4 ke bìa nhỏ quanh chân cột cho khỏi lắc. Dán một miếng Formex lên đỉnh cột để servo bám chắc."},
+  {n:"Servo A: SG90 (đứng)", spec:"SG90 9 g, 1,8 kg·cm, trục hướng lên", role:"Xoay toàn bộ phần trên: 45° / 90° nghỉ / 135°.",
+   step:"Dán đáy servo lên đỉnh cột bằng keo nến, quấn thêm 1 dây rút quanh thân servo và cột. Trục servo phải nằm đúng tâm cột."},
+  {n:"Tấm nối + tay servo A", spec:"Formex 3 mm, 3 × 17 cm + tay servo dài đi kèm SG90", role:"Nối trục servo A với servo B (một đầu) và cột đỡ chốt (đầu kia). Tấm nằm dọc theo trục lật nên khay lật không chạm tấm.",
+   step:"Cho servo A chạy về 90° trước. Vít tay servo vào giữa tấm bằng vít nhỏ đi kèm (hoặc dán keo nến), rồi ấn vào trục sao cho tấm nằm theo phương trái–phải, siết vít tâm."},
+  {n:"Servo B: SG90 (dựng đứng) + miếng kê", spec:"SG90 + miếng kê Formex cao 1 cm", role:"Lật khay: 45° / 90° ngang / 135°. Miếng kê đưa trục lên cao khoảng 2,7 cm so với tấm, đủ để khay lật không chạm tấm.",
+   step:"Dán miếng kê ở một đầu tấm, rồi dán servo B dựng đứng lên miếng kê, trục nằm ngang hướng vào tâm. Cho servo B chạy về 90°. Chừa dây chùng 8–10 cm vì servo B còn xoay theo servo A ±45°."},
+  {n:"Khay + tay servo B", spec:"Hộp nhựa ~16 × 12 cm cắt bỏ 2 đầu (hoặc bìa PP gấp mép), thành cao ≤ 2 cm, nặng ≤ 20 g", role:"Đỡ rác lúc chụp. Mặt khay dán băng keo trong cho trơn, rác dễ trượt.",
+   step:"Dán tay servo B vào giữa thành trái của khay (keo nến + 2 vít nhỏ). Khoan lỗ Ø4 ở giữa thành phải, lót một mẩu ống hút. Ấn khay vào trục servo B khi khay đang nằm ngang."},
+  {n:"Cột đỡ + chốt (bên đối diện)", spec:"2 que kem dán đôi hoặc Formex, cao ~3,3 cm + vít M3 hoặc que xiên tre", role:"Đỡ đầu bên kia của khay, để trục SG90 chỉ việc quay. Khay không bị võng và servo không bị rơ.",
+   step:"Xỏ chốt qua lỗ thành khay TRƯỚC, sau đó mới dán cột đỡ vào đầu kia của tấm nối, để cột tự nằm đúng chỗ và chốt thẳng hàng với trục servo B. Đợi keo khô rồi cho lật thử 45° ↔ 135°: khay phải quay trơn, không bị kẹt."},
+];
+function buildDropUnit(pillarH){
+  const root=new THREE.Group();
+  const yaw=new THREE.Group(); yaw.position.y=YAW_Y; root.add(yaw);
+  const tilt=new THREE.Group(); tilt.position.y=TILT_Y; yaw.add(tilt);
+  const parts=[];
+  const add=(parent,explode,fn)=>{ const g=new THREE.Group(); parent.add(g); fn(g); g.userData.base=g.position.clone(); parts.push({g,explode:new THREE.Vector3(...explode)}); };
+  const sg=()=>M(0x2f6fd6,{roughness:.35,transparent:true,opacity:.92}), white=()=>M(0xffffff), formex=()=>M(0xf2efe6);
+  // 1 cột đỡ
+  add(root,[0,0,0],g=>{ box(0.19,pillarH,0.19,M(0xb08a5e,{roughness:.85}),0,-pillarH/2,0,g); box(0.22,0.015,0.22,formex(),0,-0.0075,0,g); });
+  // 2 servo A (SG90 đứng, trục tại x=0)
+  add(root,[0,0.4,0],g=>{
+    const m=sg();
+    box(0.142,0.142,0.076,m,0.035,0.071,0,g);
+    box(0.2,0.012,0.076,m,0.035,0.1,0,g);
+    cyl(0.035,0.035,0.03,m,0,0.157,0,g);
+    cyl(0.015,0.015,0.025,white(),0,0.18,0,g);
+    box(0.16,0.012,0.09,M(0xeeeeee),0.035,0.04,0,g);
+  });
+  // 3 tấm nối + tay servo A (quay theo servo A)
+  add(yaw,[0,0.7,0],g=>{
+    box(0.03,0.012,0.22,white(),0,-0.032,0,g);
+    box(0.2,0.025,1.06,formex(),0,-0.0125,-0.06,g);
+  });
+  // 4 servo B dựng đứng trên miếng kê, trục ngang hướng +z ở độ cao TILT_Y
+  add(yaw,[0,0.95,-0.45],g=>{
+    const m=sg();
+    const DZ=TW/2-0.22;
+    box(0.1,0.06,0.16,formex(),0,0.03,-0.33-DZ,g);
+    box(0.076,0.142,0.142,m,0,0.131,-0.33-DZ,g);
+    box(0.076,0.2,0.012,m,0,0.131,-0.3-DZ,g);
+    const b=cyl(0.035,0.035,0.02,m,0,TILT_Y,-0.25-DZ,g); b.rotation.x=Math.PI/2;
+    const s=cyl(0.015,0.015,0.015,white(),0,TILT_Y,-0.235-DZ,g); s.rotation.x=Math.PI/2;
+  });
+  // 5 khay + tay servo B
+  add(tilt,[0,1.3,0],g=>{
+    const tm=M(0xf7f5ef,{roughness:.4}), rm=M(0xd97a1f,{roughness:.5});
+    box(TL,0.02,TW,tm,0,-0.04,0,g);
+    box(TL,0.12,0.015,rm,0,0.02,TW/2,g); box(TL,0.12,0.015,rm,0,0.02,-TW/2,g);
+    box(0.03,0.16,0.01,white(),0,0,-TW/2-0.012,g);
+    const h=cyl(0.02,0.02,0.012,white(),0,0,-TW/2-0.012,g); h.rotation.x=Math.PI/2;
+    const r=cyl(0.02,0.02,0.02,M(0xff6f91),0,0,TW/2,g); r.rotation.x=Math.PI/2; // lỗ lót ống hút
+    const am=new THREE.MeshBasicMaterial({color:0xd97a1f});
+    [1,-1].forEach(s=>{ const a=new THREE.Mesh(new THREE.ConeGeometry(0.04,0.1,3),am); a.rotation.set(0,Math.PI/2,-s*Math.PI/2); a.position.set(s*0.4,-0.02,0); g.add(a); });
+  });
+  // 6 cột đỡ + chốt (quay theo servo A)
+  add(yaw,[0,0.95,0.5],g=>{
+    const DZ=TW/2-0.22;
+    box(0.1,0.21,0.03,M(0xe6c89a),0,0.105,0.27+DZ,g);
+    const mm=M(0xb9bcc2,{metalness:.7,roughness:.3});
+    const p=cyl(0.012,0.012,0.11,mm,0,TILT_Y,0.25+DZ,g); p.rotation.x=Math.PI/2;
+    const hd=cyl(0.025,0.025,0.012,mm,0,TILT_Y,0.292+DZ,g,6); hd.rotation.x=Math.PI/2;
+  });
+  return {root,yaw,tilt,parts};
+}
+function setServo(unit,a,b){ unit.yaw.rotation.y=-a*DEG; unit.tilt.rotation.z=(b-90)*DEG; }
+
+/* ---------------- tween engine (shared) ---------------- */
+let speed=1;
+const tweens=[];
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+function tween(dur,fn,ez=ease){ return new Promise(res=>tweens.push({t:0,dur:Math.max(dur,0.001),fn,ez,res})); }
+const wait=ms=>tween(ms/1000,()=>{},t=>t);
+function servoTo(S,key,to,dur){ const from=S[key]; return tween(dur*Math.abs(to-from)/45, k=>S[key]=from+(to-from)*k); }
+
+/* ================= MAIN SIM ================= */
+const V=setupView(document.getElementById("view"),[3.3,3.2,4.5],[0,1.35,0]);
+V.controls.minDistance=2; V.controls.maxDistance=14;
+const scene=V.scene;
+const ground=new THREE.Mesh(new THREE.CircleGeometry(12,48),M(0x9a968c,{roughness:1,transparent:true,opacity:.35}));
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+box(1.9,0.06,1.9,M(0x8a6f4d),0,0.03,0,scene);
+
+// bins
+const A=0.48, BS=0.7, BH=0.9, WT=0.025, BIN_TOP=0.06+BH;
+const binXZ={1:[A,A],2:[-A,A],3:[-A,-A],4:[A,-A]};
+function makeLabel(text,color){
+  const c=document.createElement("canvas"); c.width=512; c.height=128; const g=c.getContext("2d");
+  g.fillStyle=color; g.beginPath(); if(g.roundRect) g.roundRect(4,4,504,120,28); else g.rect(4,4,504,120); g.fill();
+  g.fillStyle="#fff"; g.font="600 58px 'Be Vietnam Pro', sans-serif"; g.textAlign="center"; g.textBaseline="middle"; g.fillText(text,256,66);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true}));
+  s.scale.set(0.9,0.225,1); s.renderOrder=10; return s;
+}
+BINS.forEach(b=>{
+  const [cx,cz]=binXZ[b.id]; b.cx=cx; b.cz=cz;
+  const mat=M(b.color,{roughness:.45}); const g=new THREE.Group(); g.position.set(cx,0.06,cz); scene.add(g); b.group=g;
+  const bagM=new THREE.MeshStandardMaterial({color:0x222222,roughness:.9,transparent:true,opacity:.35,side:THREE.DoubleSide});
+  const bag=new THREE.Mesh(new THREE.BoxGeometry(BS+0.03,0.12,BS+0.03),bagM); bag.position.y=BH-0.03; g.add(bag); // mép túi nilon lật ra ngoài miệng thùng
+  // ke chặn chữ L trên sàn: đẩy thùng vào là đúng vị trí dưới điểm rơi
+  const keM=M(0x444444);
+  box(0.05,0.05,BS*0.5,keM,cx-Math.sign(cx)*(BS/2+0.03),0.085,cz,scene);
+  box(BS*0.5,0.05,0.05,keM,cx,0.085,cz-Math.sign(cz)*(BS/2+0.03),scene);
+  box(BS,WT,BS,mat,0,WT/2,0,g);
+  box(BS,BH,WT,mat,0,BH/2,BS/2-WT/2,g); box(BS,BH,WT,mat,0,BH/2,-BS/2+WT/2,g);
+  box(WT,BH,BS,mat,BS/2-WT/2,BH/2,0,g); box(WT,BH,BS,mat,-BS/2+WT/2,BH/2,0,g);
+  const lb=makeLabel(`${b.id} · ${b.short}`,b.color); lb.position.set(cx*2.15,0.45,cz*2.15); scene.add(lb);
+});
+
+// drop unit
+const ROOT_Y=1.02;
+const unit=buildDropUnit(ROOT_Y-0.06);
+unit.root.position.y=ROOT_Y; scene.add(unit.root);
+const PIVOT_Y=ROOT_Y+YAW_Y+TILT_Y;           // ≈ 1.885
+const TRAY_SURF=PIVOT_Y+TRAY_TOP;
+
+// housing: lower shell + capture chamber
+const lowerM=new THREE.MeshPhysicalMaterial({color:0xcfe3ff,transparent:true,opacity:.12,roughness:.1,side:THREE.DoubleSide,depthWrite:false});
+const chamberM=new THREE.MeshPhysicalMaterial({color:0xffffff,transparent:true,opacity:.22,roughness:.7,side:THREE.DoubleSide,depthWrite:false});
+const deckM=new THREE.MeshStandardMaterial({color:0x8a6f4d,transparent:true,opacity:.6,depthWrite:false});
+const housing=new THREE.Group(); scene.add(housing);
+const OH=0.88, CH=0.7, DECK=1.0, CEIL=2.6;
+const panel=(w,h,d,m,x,y,z)=>{const p=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);p.position.set(x,y,z);housing.add(p);return p;};
+// lower walls
+panel(2*OH,DECK,0.02,lowerM,0,DECK/2,OH); panel(2*OH,DECK,0.02,lowerM,0,DECK/2,-OH);
+// 2 cửa hông, bản lề ở cạnh trước, mở ra ngoài
+const doorM=new THREE.MeshPhysicalMaterial({color:0xffd9b0,transparent:true,opacity:.25,roughness:.3,side:THREE.DoubleSide,depthWrite:false});
+const doors=[1,-1].map(s=>{
+  const hg=new THREE.Group(); hg.position.set(s*OH,DECK/2,OH); housing.add(hg);
+  const p=new THREE.Mesh(new THREE.BoxGeometry(0.025,DECK-0.04,2*OH),doorM); p.position.z=-OH; hg.add(p);
+  box(0.04,0.3,0.06,M(0xd97a1f),s*0.03,0,-2*OH+0.18,hg);            // tay nắm
+  box(0.03,0.1,0.03,M(0x666666),0,0.35,-0.02,hg); box(0.03,0.1,0.03,M(0x666666),0,-0.35,-0.02,hg); // bản lề
+  hg.userData.open=s*-100*DEG; return hg;
+});
+// deck ring
+panel(2*OH,0.03,OH-CH,deckM,0,DECK,(OH+CH)/2); panel(2*OH,0.03,OH-CH,deckM,0,DECK,-(OH+CH)/2);
+panel(OH-CH,0.03,2*CH,deckM,(OH+CH)/2,DECK,0); panel(OH-CH,0.03,2*CH,deckM,-(OH+CH)/2,DECK,0);
+// chamber walls
+const CHH=CEIL-DECK, cy=DECK+CHH/2;
+panel(2*CH,CHH,0.02,chamberM,0,cy,-CH);
+panel(0.02,CHH,2*CH,chamberM,CH,cy,0); panel(0.02,CHH,2*CH,chamberM,-CH,cy,0);
+// front wall with window
+const WIN_B=TRAY_SURF-0.03, WIN_T=TRAY_SURF+0.62, WIN_X=0.4;
+panel(2*CH,WIN_B-DECK,0.02,chamberM,0,(DECK+WIN_B)/2,CH);
+panel(2*CH,CEIL-WIN_T,0.02,chamberM,0,(WIN_T+CEIL)/2,CH);
+panel(CH-WIN_X,WIN_T-WIN_B,0.02,chamberM,(CH+WIN_X)/2,(WIN_B+WIN_T)/2,CH);
+panel(CH-WIN_X,WIN_T-WIN_B,0.02,chamberM,-(CH+WIN_X)/2,(WIN_B+WIN_T)/2,CH);
+const frameM=M(0xd97a1f);
+box(2*WIN_X+0.04,0.03,0.04,frameM,0,WIN_B,CH,housing); box(2*WIN_X+0.04,0.03,0.04,frameM,0,WIN_T,CH,housing);
+box(0.03,WIN_T-WIN_B,0.04,frameM,WIN_X,(WIN_B+WIN_T)/2,CH,housing); box(0.03,WIN_T-WIN_B,0.04,frameM,-WIN_X,(WIN_B+WIN_T)/2,CH,housing);
+// ceiling
+panel(2*CH,0.03,2*CH,chamberM,0,CEIL,0);
+
+// camera at ceiling centre
+const darkM=M(0x1d1f22,{roughness:.4}), metalM=M(0xb9bcc2,{metalness:.7,roughness:.3});
+box(0.16,0.02,0.16,M(0x1f7a3d),0,CEIL-0.025,0,scene);
+cyl(0.04,0.04,0.05,darkM,0,CEIL-0.06,0,scene);
+cyl(0.022,0.022,0.01,M(0x2a4b8f,{metalness:.8,roughness:.1}),0,CEIL-0.09,0,scene);
+box(0.1,0.005,0.6,M(0xcccccc),0,CEIL-0.018,-0.35,scene); // CSI ribbon
+// LED bars
+const ledM=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x000000});
+box(0.06,0.02,0.6,ledM,0.35,CEIL-0.03,0,scene); box(0.06,0.02,0.6,ledM,-0.35,CEIL-0.03,0,scene);
+const spots=[0.35,-0.35].map(x=>{const s=new THREE.SpotLight(0xffffff,0,4,0.75,0.6); s.position.set(x,CEIL-0.05,0); s.target.position.set(0,TRAY_SURF,0); scene.add(s,s.target); return s;});
+// HC-SR04 on back wall
+const SON_Y=TRAY_SURF+0.2, SON_Z=-CH+0.03;
+box(0.28,0.13,0.015,M(0x1f5fbf),0,SON_Y,SON_Z-0.005,scene);
+[-0.08,0.08].forEach(x=>{ const c=cyl(0.05,0.05,0.07,metalM,x,SON_Y,SON_Z+0.035,scene); c.rotation.x=Math.PI/2; });
+// Raspberry Pi outside back
+box(0.53,0.35,0.04,M(0x1f7a3d),0,CEIL-0.45,-CH-0.04,scene);
+box(0.12,0.08,0.06,metalM,0.18,CEIL-0.55,-CH-0.08,scene);
+
+// zones: camera frustum + sonar cone
+const zones=new THREE.Group(); scene.add(zones);
+const fh=CEIL-0.09-TRAY_SURF, hz=Math.tan(27*DEG)*fh, hx=Math.tan(20.5*DEG)*fh;
+const cp=new THREE.Vector3(0,CEIL-0.09,0);
+const corners=[[hx,hz],[-hx,hz],[-hx,-hz],[hx,-hz]].map(([x,z])=>new THREE.Vector3(x,TRAY_SURF+0.005,z));
+const fpts=[]; corners.forEach((c,i)=>{ fpts.push(cp,c, c,corners[(i+1)%4]); });
+const frustMat=new THREE.LineBasicMaterial({color:0x2f6fd6,transparent:true,opacity:.7});
+zones.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(fpts),frustMat));
+const footM=new THREE.MeshBasicMaterial({color:0x2f6fd6,transparent:true,opacity:.08,depthWrite:false,side:THREE.DoubleSide});
+const foot=new THREE.Mesh(new THREE.PlaneGeometry(2*hx,2*hz),footM); foot.rotation.x=-Math.PI/2; foot.position.y=TRAY_SURF+0.006; zones.add(foot);
+const SON_LEN=1.35;
+const sonarM=new THREE.MeshBasicMaterial({color:0xe0a21b,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide});
+const sonar=new THREE.Mesh(new THREE.ConeGeometry(Math.tan(15*DEG)*SON_LEN,SON_LEN,24,1,true),sonarM);
+sonar.rotation.x=-Math.PI/2; sonar.rotation.z=0; sonar.position.set(0,SON_Y,SON_Z+0.07+SON_LEN/2);
+sonar.rotateX(5*DEG); zones.add(sonar);
+
+/* ---- main UI ---- */
+const S={a:90,b:90};
+const dropsEl=document.getElementById("drops");
+ITEMS.forEach((it,i)=>{ const b=BINS[it.bin-1]; const btn=document.createElement("button");
+  btn.innerHTML=`<span class="dot" style="background:${b.color}"></span>${it.label}`; btn.onclick=()=>runDrop(i); dropsEl.appendChild(btn); });
+const counts=[0,0,0,0], countsEl=document.getElementById("counts");
+const renderCounts=()=> countsEl.innerHTML=BINS.map((b,i)=>`<div><span class="dot" style="background:${b.color}"></span>${b.short}: <b class="mono">${counts[i]}</b></div>`).join("");
+renderCounts();
+document.getElementById("speed").oninput=e=>speed=+e.target.value;
+document.getElementById("shell").oninput=e=>{const v=+e.target.value; chamberM.opacity=v; lowerM.opacity=v*0.55; deckM.opacity=Math.min(1,v*2.7); housing.visible=v>0.01;};
+document.getElementById("zones").onchange=e=> zones.visible=e.target.checked;
+const resultEl=document.getElementById("result");
+const us=a=>Math.round(500+a/180*2000);
+function updateServoUI(){
+  setServo(unit,S.a,S.b);
+  document.getElementById("valA").textContent=Math.round(S.a)+"°"; document.getElementById("valB").textContent=Math.round(S.b)+"°";
+  document.getElementById("barA").style.width=(S.a/180*100)+"%"; document.getElementById("barB").style.width=(S.b/180*100)+"%";
+  document.getElementById("pwm").textContent=`GPIO12 ${us(S.a)}µs · GPIO13 ${us(S.b)}µs`;
+}
+const step=n=>document.querySelectorAll("#steps li").forEach(li=>li.classList.toggle("on",+li.dataset.s===n));
+
+function makeItem(kind){
+  const g=new THREE.Group(); let h=0.08;
+  if(kind==="bottle"){ const m=M(0x7cc4f2,{transparent:true,opacity:.8,roughness:.15});
+    cyl(0.075,0.075,0.34,m,0,0,0,g).rotation.z=Math.PI/2; cyl(0.03,0.06,0.08,m,0.21,0,0,g).rotation.z=-Math.PI/2;
+    cyl(0.032,0.032,0.03,M(0x2457b8),0.26,0,0,g).rotation.z=Math.PI/2; h=0.075;
+  }else if(kind==="can"){ cyl(0.07,0.07,0.24,M(0xc8ccd2,{metalness:.8,roughness:.25}),0,0,0,g).rotation.z=Math.PI/2;
+    cyl(0.071,0.071,0.1,M(0xd33a2c,{metalness:.4}),0,0,0,g).rotation.z=Math.PI/2; h=0.07;
+  }else if(kind==="banana"){ const t=new THREE.Mesh(new THREE.TorusGeometry(0.16,0.04,10,20,Math.PI*0.9),M(0xf0cf3a)); t.rotation.x=Math.PI/2; t.castShadow=true; g.add(t); h=0.04;
+  }else if(kind==="apple"){ const s=new THREE.Mesh(new THREE.SphereGeometry(0.09,18,14),M(0xc9a35a)); s.scale.y=1.2; s.castShadow=true; g.add(s); h=0.1;
+  }else if(kind==="crumple"){ const s=new THREE.Mesh(new THREE.DodecahedronGeometry(0.1,0),M(0xe8e4da,{flatShading:true})); s.castShadow=true; g.add(s); h=0.09;
+  }else if(kind==="glass"){ const s=new THREE.Mesh(new THREE.OctahedronGeometry(0.1,0),M(0x9fe0c9,{transparent:true,opacity:.7,roughness:.05,flatShading:true})); s.scale.set(1.3,.5,1); s.castShadow=true; g.add(s); h=0.05;
+  }else if(kind==="battery"){ cyl(0.04,0.04,0.2,M(0x1d1f22),0,0,0,g).rotation.z=Math.PI/2; cyl(0.041,0.041,0.07,M(0xe0a21b),0.065,0,0,g).rotation.z=Math.PI/2;
+    cyl(0.015,0.015,0.02,metalM,0.11,0,0,g).rotation.z=Math.PI/2; h=0.04;
+  }else if(kind==="battery9"){ box(0.12,0.17,0.07,M(0x2457b8),0,0,0,g); cyl(0.015,0.015,0.03,metalM,0.03,0.1,0,g); cyl(0.015,0.015,0.03,metalM,-0.03,0.1,0,g); h=0.085; }
+  g.scale.setScalar(0.8); g.userData.h=h*0.8; return g;
+}
+
+const dropped=[]; let busy=false, autoOn=false;
+function setButtons(d){ dropsEl.querySelectorAll("button").forEach(b=>b.disabled=d); document.getElementById("empty").disabled=d; }
+async function runDrop(idx){
+  if(busy) return; busy=true; setButtons(true);
+  const it=ITEMS[idx], bin=BINS[it.bin-1], item=makeItem(it.kind), h=item.userData.h;
+  const topY=TRAY_SURF+h;
+  item.position.set((Math.random()-.5)*0.1, topY+0.15, CH+0.7);
+  item.rotation.y=Math.PI/2+(Math.random()-.5)*0.4;
+  scene.add(item);
+  resultEl.innerHTML=`Đang đặt: <b>${it.label}</b> qua cửa trước`;
+  step(1);
+  const z0=item.position.z, zt=(Math.random()-.5)*0.15;
+  await tween(0.8/1, k=>item.position.z=z0+(zt-z0)*k);
+  const y0=item.position.y;
+  await tween(0.18,k=>item.position.y=y0+(topY-y0)*k,t=>t*t);
+  unit.tilt.attach(item);
+  for(let i=0;i<3;i++){ sonarM.opacity=.35; await wait(120); sonarM.opacity=.14; await wait(80); }
+  await wait(150);
+  step(2);
+  ledM.emissive.setHex(0xffffff); spots.forEach(s=>s.intensity=1.6); footM.opacity=.22;
+  for(let i=0;i<5;i++){ await wait(100); frustMat.opacity = i%2?.7:1; }
+  ledM.emissive.setHex(0x000000); spots.forEach(s=>s.intensity=0); footM.opacity=.08;
+  const conf=(0.78+Math.random()*0.2).toFixed(2);
+  resultEl.innerHTML=`<b>${it.label}</b> → <span class="mono">${it.cls} ${conf}</span> → <span style="color:${bin.color};font-weight:700">Thùng ${bin.id}: ${bin.name}</span>`;
+  await wait(200);
+  step(3); await servoTo(S,"a",bin.rot,0.45); await wait(150);
+  step(4);
+  const dir=bin.tilt<90?1:-1;
+  const tp=servoTo(S,"b",bin.tilt,0.35); await wait(180);
+  const x0=item.position.x;
+  await tween(0.4,k=>item.position.x=x0+(dir*(TL/2+0.06)-x0)*k,t=>t*t); await tp;
+  scene.attach(item);
+  const p0=item.position.clone(), n=counts[bin.id-1];
+  const landY=0.06+WT+h+Math.min(n,10)*0.07;
+  const lx=bin.cx+(Math.random()-.5)*0.28, lz=bin.cz+(Math.random()-.5)*0.28, spin=(Math.random()-.5)*6, r0=item.rotation.z;
+  tween(0.6,k=>{ item.position.x=p0.x+(lx-p0.x)*k; item.position.z=p0.z+(lz-p0.z)*k;
+    item.position.y=p0.y+0.15*Math.sin(k*Math.PI*0.5)-(p0.y+0.15-landY)*k*k; item.rotation.z=r0+spin*k; },t=>t)
+    .then(()=>{ item.rotation.z=Math.round(item.rotation.z/Math.PI)*Math.PI; item.userData.trash=true; bin.group.attach(item); counts[bin.id-1]++; renderCounts(); });
+  dropped.push(item);
+  await wait(250);
+  step(5); await servoTo(S,"b",90,0.35); await wait(150); await servoTo(S,"a",90,0.45); await wait(300);
+  step(0); busy=false; setButtons(false);
+  if(autoOn) setTimeout(()=>autoOn&&runDrop(Math.floor(Math.random()*ITEMS.length)),400/speed);
+}
+const autoBtn=document.getElementById("auto");
+autoBtn.onclick=()=>{ autoOn=!autoOn; autoBtn.textContent=autoOn?"■ Dừng":"▶ Tự động"; if(autoOn&&!busy) runDrop(Math.floor(Math.random()*ITEMS.length)); };
+document.getElementById("empty").onclick=async()=>{
+  if(busy) return; busy=true; setButtons(true); autoOn=false; autoBtn.textContent="▶ Tự động";
+  const shellEl=document.getElementById("shell"); if(+shellEl.value<0.15){ shellEl.value=0.22; shellEl.oninput({target:shellEl}); }
+  resultEl.innerHTML="Công tắc cửa mở → Pi <b>tạm dừng</b> nhận rác, servo không chạy";
+  await tween(0.8,k=>doors.forEach(d=>d.rotation.y=d.userData.open*k));
+  resultEl.innerHTML="Kéo 2 thùng mỗi bên trượt ra ngoài";
+  await tween(0.9,k=>BINS.forEach(b=>b.group.position.x=b.cx+Math.sign(b.cx)*0.9*k));
+  resultEl.innerHTML="Thắt miệng túi nilon, nhấc túi ra, lót túi mới";
+  const its=BINS.flatMap(b=>b.group.children.filter(o=>o.userData.trash)), ys=its.map(o=>o.position.y);
+  await tween(0.8,k=>its.forEach((o,i)=>{ o.position.y=ys[i]+k*1.6; o.scale.setScalar(Math.max(0.05,1-k)); }));
+  its.forEach(o=>o.parent.remove(o)); dropped.length=0; counts.fill(0); renderCounts();
+  await wait(250);
+  resultEl.innerHTML="Đẩy thùng vào tới ke chặn, đóng cửa";
+  await tween(0.9,k=>BINS.forEach(b=>b.group.position.x=b.cx+Math.sign(b.cx)*0.9*(1-k)));
+  await tween(0.8,k=>doors.forEach(d=>d.rotation.y=d.userData.open*(1-k)));
+  resultEl.innerHTML="Cửa đóng → hoạt động lại";
+  busy=false; setButtons(false);
+};
+
+/* ================= ASSEMBLY VIEW ================= */
+const AV=setupView(document.getElementById("asmView"),[2.0,1.9,2.7],[0,0.95,0]);
+AV.controls.minDistance=0.8; AV.controls.maxDistance=8;
+const ag=new THREE.Mesh(new THREE.CircleGeometry(6,48),M(0x9a968c,{roughness:1,transparent:true,opacity:.3}));
+ag.rotation.x=-Math.PI/2; ag.receiveShadow=true; AV.scene.add(ag);
+const aunit=buildDropUnit(0.4); aunit.root.position.y=0.45; AV.scene.add(aunit.root);
+const AS={a:90,b:90}; setServo(aunit,90,90);
+const asmView=document.getElementById("asmView");
+const labels=aunit.parts.map((p,i)=>{ const d=document.createElement("div"); d.className="lbl"; d.textContent=i+1; asmView.appendChild(d); return d; });
+let asmStep=0, explodeK=0.65, asmBusy=false;
+const partK=aunit.parts.map(()=>0.65);
+function highlight(i,on){ aunit.parts[i].g.traverse(o=>{ if(o.material&&o.material.emissive) o.material.emissive.setHex(on?0x7a3a00:0x000000); }); }
+function applyExplode(){ aunit.parts.forEach((p,i)=>{ p.g.position.copy(p.g.userData.base).addScaledVector(p.explode,partK[i]); }); }
+const plist=document.getElementById("plist"), stepBox=document.getElementById("stepBox"), asmTitle=document.getElementById("asmTitle");
+plist.innerHTML=UNIT_PARTS.map((p,i)=>`<li data-i="${i+1}"><b>${i+1}</b><span>${p.n}</span></li>`).join("");
+plist.querySelectorAll("li").forEach(li=>li.onclick=()=>goStep(+li.dataset.i));
+document.getElementById("unitRows").innerHTML=UNIT_PARTS.map((p,i)=>`<tr><td class="mono">${i+1}</td><td><b>${p.n}</b></td><td class="mono" style="font-size:13px">${p.spec}</td><td>${p.role}</td></tr>`).join("");
+function goStep(n){
+  if(asmBusy) return;
+  asmStep=Math.max(0,Math.min(UNIT_PARTS.length,n));
+  plist.querySelectorAll("li").forEach(li=>li.classList.toggle("on",+li.dataset.i===asmStep));
+  aunit.parts.forEach((p,i)=>highlight(i,false));
+  if(asmStep===0){
+    aunit.parts.forEach((p,i)=>{p.g.visible=true; partK[i]=explodeK;});
+    asmTitle.textContent='Tổng quan: kéo thanh "Tháo rời" để tách các chi tiết';
+    stepBox.innerHTML=`<b class="t">Tổng quan cụm thả</b>${UNIT_PARTS.length} chi tiết, lắp từ dưới lên, chỉ cần keo nến và vít đi kèm servo. Bấm "Bước ▶" hoặc chọn một chi tiết trong danh sách để xem cách lắp từng bước.`;
+    return;
+  }
+  const k=asmStep-1;
+  aunit.parts.forEach((p,i)=>{ p.g.visible=i<=k; if(i<k) partK[i]=0; });
+  highlight(k,true);
+  partK[k]=1; tween(0.9,t=>partK[k]=1-t);
+  const p=UNIT_PARTS[k];
+  asmTitle.textContent=`Bước ${asmStep}/${UNIT_PARTS.length}: ${p.n}`;
+  stepBox.innerHTML=`<b class="t">${asmStep}. ${p.n}</b>${p.step}<div class="muted mono" style="font-size:12.5px;margin-top:6px">${p.spec}</div>`;
+}
+document.getElementById("prev").onclick=()=>goStep(asmStep-1);
+document.getElementById("next").onclick=()=>goStep(asmStep+1);
+document.getElementById("overview").onclick=()=>goStep(0);
+document.getElementById("explode").oninput=e=>{ explodeK=+e.target.value; if(asmStep!==0) goStep(0); aunit.parts.forEach((p,i)=>partK[i]=explodeK); };
+document.getElementById("asmTest").onclick=async()=>{
+  if(asmBusy) return; goStep(0); asmBusy=true;
+  const from=partK.slice(); await tween(0.6,t=>from.forEach((v,i)=>partK[i]=v*(1-t)));
+  for(const b of BINS){
+    asmTitle.innerHTML=`Thùng ${b.id} · ${b.name}: A ${b.rot}° → B ${b.tilt}°`;
+    await servoTo(AS,"a",b.rot,0.5); await wait(200);
+    await servoTo(AS,"b",b.tilt,0.4); await wait(400);
+    await servoTo(AS,"b",90,0.4); await wait(150);
+    await servoTo(AS,"a",90,0.5); await wait(250);
+  }
+  asmTitle.textContent="Đã chạy hết 4 thùng"; asmBusy=false;
+  document.getElementById("explode").value=0; explodeK=0;
+};
+goStep(0);
+const tmpBox=new THREE.Box3(), tmpV=new THREE.Vector3();
+function updateLabels(){
+  const w=asmView.clientWidth, h=asmView.clientHeight;
+  aunit.parts.forEach((p,i)=>{
+    const L=labels[i];
+    if(!p.g.visible){ L.style.display="none"; return; }
+    tmpBox.setFromObject(p.g); tmpBox.getCenter(tmpV); tmpV.project(AV.camera);
+    if(tmpV.z>1){ L.style.display="none"; return; }
+    L.style.display="flex"; L.style.left=((tmpV.x+1)/2*w)+"px"; L.style.top=((1-tmpV.y)/2*h)+"px";
+    L.classList.toggle("dim", asmStep!==0 && i!==asmStep-1);
+  });
+}
+
+
+/* ================= BUILD GUIDE (lắp toàn máy) ================= */
+const GV=setupView(document.getElementById("guideView"),[3.0,3.0,4.2],[0,1.2,0]);
+GV.controls.minDistance=1; GV.controls.maxDistance=10;
+const gS=GV.scene;
+{ const g=new THREE.Mesh(new THREE.CircleGeometry(8,48),M(0x9a968c,{roughness:1,transparent:true,opacity:.3})); g.rotation.x=-Math.PI/2; g.receiveShadow=true; gS.add(g); }
+const cartonMats=[];
+const cm=()=>{ const m=new THREE.MeshStandardMaterial({color:0xcfae7c,roughness:.9,transparent:true,opacity:.55,side:THREE.DoubleSide}); cartonMats.push(m); return m; };
+const gItems={};
+function reg(key,obj,off){ (gItems[key]=gItems[key]||[]).push({obj,off:new THREE.Vector3(...off),base:obj.position.clone()}); return obj; }
+const GG=(parent=gS)=>{ const g=new THREE.Group(); parent.add(g); return g; };
+
+// 1 đế + vạch + ke chặn
+{ const g=GG(); box(1.9,0.06,1.9,M(0x8a6f4d),0,0.03,0,g);
+  const lm=new THREE.MeshBasicMaterial({color:0xffffff});
+  box(1.8,0.004,0.012,lm,0,0.062,0,g); box(0.012,0.004,1.8,lm,0,0.062,0,g);
+  [[OH,0],[-OH,0]].forEach(([x])=>box(0.012,0.004,2*OH,lm,x,0.062,0,g));
+  box(2*OH,0.004,0.012,lm,0,0.062,OH,g); box(2*OH,0.004,0.012,lm,0,0.062,-OH,g);
+  BINS.forEach(b=>{ const [cx,cz]=binXZ[b.id], km=M(0x444444);
+    box(0.04,0.04,BS*0.5,km,cx-Math.sign(cx)*(BS/2+0.025),0.08,cz,g); box(BS*0.5,0.04,0.04,km,cx,0.08,cz-Math.sign(cz)*(BS/2+0.025),g); });
+  reg("base",g,[0,-0.8,0]); }
+// 2 + 7: cụm thả (cột riêng một bước)
+const gu=buildDropUnit(ROOT_Y-0.06); gu.root.position.y=ROOT_Y; gS.add(gu.root); setServo(gu,90,90);
+reg("pillar",gu.parts[0].g,[0,1.6,0]);
+gu.parts.slice(1).forEach((p,i)=>reg("unit",p.g,[0,0.9+i*0.18,0]));
+// 3 thùng
+BINS.forEach(b=>{ const [cx,cz]=binXZ[b.id]; const g=GG(); g.position.set(cx,0.06,cz);
+  const mat=M(b.color,{roughness:.45});
+  box(BS,WT,BS,mat,0,WT/2,0,g);
+  box(BS,BH,WT,mat,0,BH/2,BS/2-WT/2,g); box(BS,BH,WT,mat,0,BH/2,-BS/2+WT/2,g);
+  box(WT,BH,BS,mat,BS/2-WT/2,BH/2,0,g); box(WT,BH,BS,mat,-BS/2+WT/2,BH/2,0,g);
+  const bag=new THREE.Mesh(new THREE.BoxGeometry(BS+0.03,0.1,BS+0.03),new THREE.MeshStandardMaterial({color:0x222222,transparent:true,opacity:.35})); bag.position.y=BH-0.03; g.add(bag);
+  reg("bins",g,[0,1.4+b.id*0.12,0]); });
+// 4 vách trước/sau tầng thùng
+reg("lower",box(2*OH,DECK,0.03,cm(),0,DECK/2,OH,gS),[0,0,0.9]);
+reg("lower",box(2*OH,DECK,0.03,cm(),0,DECK/2,-OH,gS),[0,0,-0.9]);
+// 5 cửa hông
+[1,-1].forEach(s=>{ const hg=GG(); hg.position.set(s*OH,DECK/2,OH);
+  box(0.03,DECK-0.04,2*OH,cm(),0,0,-OH,hg);
+  box(0.04,0.25,0.06,M(0xd97a1f),s*0.03,0,-2*OH+0.15,hg);
+  const tape=M(0x8b8b8b); box(0.05,DECK-0.1,0.05,tape,0,0,-0.01,hg);
+  reg("doors",hg,[s*0.9,0,0]); });
+// 6 sàn ngăn
+{ const g=GG(), m=cm();
+  box(2*OH,0.03,OH-CH,m,0,DECK,(OH+CH)/2,g); box(2*OH,0.03,OH-CH,m,0,DECK,-(OH+CH)/2,g);
+  box(OH-CH,0.03,2*CH,m,(OH+CH)/2,DECK,0,g); box(OH-CH,0.03,2*CH,m,-(OH+CH)/2,DECK,0,g);
+  reg("deck",g,[0,0.9,0]); }
+// 8 buồng chụp
+{ const CHH=CEIL-DECK, cy=DECK+CHH/2;
+  reg("chamber",box(2*CH,CHH,0.03,cm(),0,cy,-CH,gS),[0,0,-0.9]);
+  reg("chamber",box(0.03,CHH,2*CH,cm(),CH,cy,0,gS),[0.9,0,0]);
+  reg("chamber",box(0.03,CHH,2*CH,cm(),-CH,cy,0,gS),[-0.9,0,0]);
+  const f=GG(), m=cm();
+  box(2*CH,WIN_B-DECK,0.03,m,0,(DECK+WIN_B)/2,CH,f); box(2*CH,CEIL-WIN_T,0.03,m,0,(WIN_T+CEIL)/2,CH,f);
+  box(CH-WIN_X,WIN_T-WIN_B,0.03,m,(CH+WIN_X)/2,(WIN_B+WIN_T)/2,CH,f); box(CH-WIN_X,WIN_T-WIN_B,0.03,m,-(CH+WIN_X)/2,(WIN_B+WIN_T)/2,CH,f);
+  const fm=M(0xd97a1f);
+  box(2*WIN_X+0.04,0.03,0.04,fm,0,WIN_B,CH,f); box(2*WIN_X+0.04,0.03,0.04,fm,0,WIN_T,CH,f);
+  box(0.03,WIN_T-WIN_B,0.04,fm,WIN_X,(WIN_B+WIN_T)/2,CH,f); box(0.03,WIN_T-WIN_B,0.04,fm,-WIN_X,(WIN_B+WIN_T)/2,CH,f);
+  reg("chamber",f,[0,0,0.9]); }
+// 9 HC-SR04
+{ const g=GG();
+  box(0.3,0.02,0.15,M(0xf2efe6),0,SON_Y-0.075,SON_Z+0.06,g);
+  box(0.28,0.13,0.015,M(0x1f5fbf),0,SON_Y,SON_Z-0.005,g);
+  [-0.08,0.08].forEach(x=>{ const c=cyl(0.05,0.05,0.07,M(0xb9bcc2,{metalness:.7,roughness:.3}),x,SON_Y,SON_Z+0.035,g); c.rotation.x=Math.PI/2; });
+  const beam=new THREE.Mesh(new THREE.ConeGeometry(Math.tan(15*DEG)*SON_LEN,SON_LEN,24,1,true),new THREE.MeshBasicMaterial({color:0xe0a21b,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide}));
+  beam.rotation.x=-Math.PI/2; beam.position.set(0,SON_Y,SON_Z+0.07+SON_LEN/2); beam.rotateX(5*DEG); g.add(beam);
+  reg("sonar",g,[0,0,0.7]); }
+// 10 trần + camera + đèn
+{ const g=GG();
+  box(2*CH,0.03,2*CH,cm(),0,CEIL,0,g);
+  box(0.3,0.02,0.3,M(0xf2efe6),0,CEIL-0.025,0,g);
+  box(0.16,0.02,0.16,M(0x1f7a3d),0,CEIL-0.045,0,g);
+  cyl(0.04,0.04,0.05,M(0x1d1f22),0,CEIL-0.08,0,g);
+  box(0.1,0.005,0.6,M(0xcccccc),0,CEIL-0.018,-0.35,g);
+  const lm=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x444444});
+  box(0.06,0.02,0.6,lm,0.35,CEIL-0.03,0,g); box(0.06,0.02,0.6,lm,-0.35,CEIL-0.03,0,g);
+  const fh=CEIL-0.1-TRAY_SURF, hz=Math.tan(27*DEG)*fh, hx=Math.tan(20.5*DEG)*fh, cp=new THREE.Vector3(0,CEIL-0.1,0);
+  const cs=[[hx,hz],[-hx,hz],[-hx,-hz],[hx,-hz]].map(([x,z])=>new THREE.Vector3(x,TRAY_SURF,z)); const pts=[];
+  cs.forEach((c,i)=>pts.push(cp,c,c,cs[(i+1)%4]));
+  g.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x2f6fd6,transparent:true,opacity:.7})));
+  reg("ceiling",g,[0,1.0,0]); }
+// 11 Pi + breadboard + adapter + dây
+{ const g=GG();
+  box(0.53,0.35,0.04,M(0x1f7a3d),0,CEIL-0.45,-CH-0.04,g);
+  box(0.12,0.08,0.06,M(0xb9bcc2,{metalness:.7}),0.18,CEIL-0.55,-CH-0.08,g);
+  box(0.4,0.25,0.03,M(0xf5f5f5),0,DECK+0.35,-CH-0.04,g);
+  box(0.22,0.1,0.14,M(0x1d1f22),0.55,0.05,-OH-0.2,g);
+  const tube=(pts,color,r=0.012)=>{ const c=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)),false,"centripetal");
+    const m=new THREE.Mesh(new THREE.TubeGeometry(c,80,r,6,false),M(color)); m.castShadow=true; g.add(m); };
+  tube([[0.11,ROOT_Y-0.05,0],[0.11,0.12,0],[0.11,0.09,-0.5],[0.11,0.09,-OH-0.04],[0.11,DECK-0.2,-OH-0.05],[0.1,DECK+0.3,-CH-0.07]],0xe07b1f);
+  tube([[0.0,SON_Y,SON_Z],[0.0,SON_Y,-CH-0.07],[-0.1,DECK+0.6,-CH-0.07],[-0.1,DECK+0.4,-CH-0.07]],0x7b4fd1);
+  tube([[0.55,0.1,-OH-0.2],[0.4,0.3,-OH-0.12],[0.2,DECK+0.25,-CH-0.07]],0x222222,0.016);
+  tube([[0.12,DECK+0.45,-CH-0.07],[0.1,CEIL-0.6,-CH-0.07]],0xd33a2c);
+  reg("pi",g,[0,0,-0.9]); }
+
+const GSTEPS=[
+ {k:["base"],t:"Đế và đánh dấu vị trí",cam:[1.8,2.4,2.6],tg:[0,0,0],
+  need:"Đế MDF 30 × 30 (hoặc 3 lớp carton dán chồng), thước, bút, 8 que kem",
+  do:["Kẻ 2 đường giữa song song với cạnh đế, giao nhau ở tâm. Đây là vị trí cột.",
+      "Kẻ đường viền vỏ 28 × 28 cm, cách mép đế 1 cm.",
+      "Đánh dấu 4 ô 11 × 11 cm ở 4 góc quanh tâm. Cạnh trong của mỗi ô cách đường giữa 2,2 cm (khe giữa 4,4 cm cho cột 3 cm).",
+      "Cắt đôi que kem, dán thành ke chặn chữ L ở 2 cạnh phía trong của mỗi ô. Đẩy thùng chạm ke là thùng nằm đúng vị trí."],
+  check:"Đo 2 đường chéo của hình vuông 28 × 28 phải bằng nhau (khoảng 39,6 cm)."},
+ {k:["pillar"],t:"Cột đỡ servo A",cam:[1.5,1.8,2.1],tg:[0,0.6,0],
+  need:"Khúc gỗ 3 × 3 cm (hoặc ống giấy cứng nhồi bìa), đệm Formex 3,5 × 3,5, 4 tam giác carton 3 × 3, keo nến",
+  do:["Cắt cột dài đúng 15,4 cm, mài phẳng 2 đầu.",
+      "Dán đệm Formex lên đỉnh cột để servo bám chắc.",
+      "Dán chân cột vào tâm đế, ép 4 ke tam giác quanh chân cột.",
+      "Áp ê-ke hoặc một hộp vuông vào cột để chỉnh thẳng đứng trước khi keo khô."],
+  check:"Đỉnh cột cao 15,4 cm so với mặt đế, để trục lật nằm ở 22,7 cm."},
+ {k:["bins"],t:"Gấp 4 thùng chứa",cam:[2.2,2.3,3.0],tg:[0,0.4,0],
+  need:"4 dải B 45 × 14, 4 đáy b 11 × 11, túi nilon, dây chun, keo nến",
+  do:["Kẻ nếp tại 11 – 22 – 33 – 44 cm trên mỗi dải. Rạch nhẹ lớp mặt ngoài rồi gấp vuông.",
+      "Dán mép 1 cm cuối vào cạnh đầu để thành ống vuông 11 × 11.",
+      "Dán đáy 11 × 11 vào một đầu, đi một đường keo nến bên trong cho kín.",
+      "Lót túi nilon, lật mép túi ra ngoài miệng thùng, giữ bằng dây chun.",
+      "Đặt thùng sát ke chặn. Nhìn từ phía cửa: <b>1 Tái chế</b> trước-phải, <b>2 Thực phẩm</b> trước-trái, <b>3 Khác</b> sau-trái, <b>4 Nguy hại</b> sau-phải. Dán nhãn màu lên thùng."],
+  check:"Miệng thùng cao 14 cm, mặt trong vuông, đặt vào ke không bị cấn."},
+ {k:["lower"],t:"Vách trước và sau tầng thùng (L)",cam:[2.6,2.0,3.3],tg:[0,0.5,0],
+  need:"2 tấm L 28 × 16, que kem làm nẹp",
+  do:["Dán que kem dọc vạch viền trước và sau trên đế để làm gờ.",
+      "Dựng 2 tấm L áp vào gờ, dán keo nến cả mặt trong lẫn mặt ngoài.",
+      "Khoét lỗ Ø1,5 cm ở vách sau, sát đáy và gần cột, để luồn dây servo ra sau."],
+  check:"2 vách song song, đứng thẳng, cách nhau 28 cm."},
+ {k:["doors"],t:"Cửa hông (D)",cam:[3.2,1.6,1.8],tg:[0,0.5,0],
+  need:"2 tấm D 28 × 16, băng keo vải, 2 cặp nam châm, (tùy chọn) 2 công tắc reed",
+  do:["Dán băng keo vải nối cạnh trước của cửa với mép vách trước, dán cả mặt trong và mặt ngoài để bản lề bền.",
+      "Dán nam châm ở cạnh sau cửa và ở mép vách sau để cửa tự hít khi đóng.",
+      "Dán tay nắm (mẩu Formex hoặc carton gấp) gần cạnh sau.",
+      "Tùy chọn: dán công tắc reed ở vách sau, nam châm ở cửa, để Pi biết khi nào cửa đang mở."],
+  check:"Mở cửa trái thấy thùng 2 và 3, mở cửa phải thấy thùng 1 và 4. Thùng kéo ra được."},
+ {k:["deck"],t:"Sàn ngăn (S)",cam:[2.4,2.8,3.0],tg:[0,0.9,0],
+  need:"Tấm S 28 × 28. Giữ lại miếng 22 × 22 khoét ra để làm trần",
+  do:["Kẻ lỗ 22 × 22 cách đều mép 3 cm, khoét bằng dao rọc giấy (rạch 2–3 lượt nhẹ).",
+      "Đặt sàn lên đỉnh 2 vách L và dán keo nến. Sàn cũng làm gờ chặn phía trên cho 2 cửa hông.",
+      "Miệng thùng phải cách mặt dưới sàn ít nhất 5 mm để thùng kéo ra không vướng."],
+  check:"Nhìn qua lỗ 22 × 22 từ trên xuống thấy đủ 4 miệng thùng và cột ở giữa."},
+ {k:["unit"],t:"Cụm thả rác (2 servo + khay)",cam:[1.5,2.1,2.1],tg:[0,1.3,0],
+  need:"2 SG90, tấm nối 3 × 17, miếng kê, khay 16 × 12, cột đỡ chốt, vít M3. Nối tạm servo vào Pi theo bước 11 để chỉnh về 90°",
+  do:["Lắp theo các bước chi tiết ở mục <a href=\"#unit\">Cụm thả rác</a>: servo A → tấm nối → servo B + miếng kê → khay → cột đỡ + chốt.",
+      "Trước khi gắn tay servo, cho cả hai servo về 90°: chạy <code>python tools/calibrate.py</code>, gõ <code>c 90</code> rồi <code>t 90</code>.",
+      "Khay nằm dọc trước–sau, đầu khay hướng thẳng ra cửa nạp.",
+      "Dây servo cột dọc cột bằng dây rút, xuống đáy rồi luồn qua lỗ ở vách sau. Dây servo B chừa chùng 8–10 cm."],
+  check:"Gõ <code>c 45</code>, <code>c 135</code>, <code>t 45</code>, <code>t 135</code>: khay không chạm sàn, thành thùng hay dây."},
+ {k:["chamber"],t:"Buồng chụp (C1–C3)",cam:[2.9,3.1,3.7],tg:[0,1.7,0],
+  need:"C1, C2, 2 × C3, 5 tờ A4 trắng, keo nến, que kem",
+  do:["Dán giấy trắng lên mặt trong 4 vách <b>trước khi</b> ghép, vì ghép xong rồi mới dán thì rất khó.",
+      "Khoét cửa nạp 13 × 10 trên C1: căn giữa, mép dưới cách đáy vách 6,2 cm.",
+      "Ghép thành hộp: 2 tấm C3 kẹp giữa C1 và C2, dán keo nến các góc, gia cố bằng que kem.",
+      "Đặt hộp lên sàn ngăn trùng mép lỗ 22 × 22, cửa nạp hướng ra trước. Dán chân hộp xuống sàn."],
+  check:"Mép dưới cửa nạp ngang hoặc thấp hơn mặt khay khoảng 0,5 cm."},
+ {k:["sonar"],t:"Cảm biến siêu âm HC-SR04",cam:[1.4,2.2,1.9],tg:[0,1.6,-0.4],
+  need:"HC-SR04, gá Formex 5 × 2,5, 4 dây dupont cái-cái 20 cm",
+  do:["Dán gá Formex vuông góc vào mặt trong vách sau C2, ở giữa chiều ngang.",
+      "Gắn HC-SR04 lên gá: tâm 2 mắt cao hơn mặt khay 3 cm (cách đáy vách khoảng 9,2 cm), nghiêng lên khoảng 5°.",
+      "Đục lỗ nhỏ trên C2 ngay sau cảm biến để luồn 4 dây ra ngoài."],
+  check:"Cho khay xoay 45° và 135°: khay và servo B không chạm cảm biến."},
+ {k:["ceiling"],t:"Trần, camera và đèn",cam:[2.4,3.6,3.0],tg:[0,2.1,0],
+  need:"Tấm T 22 × 22, gá camera 5 × 5, OV5647 + cáp CSI 30 cm, dây LED 5V USB trắng, giấy can",
+  do:["Dán giấy trắng lên mặt dưới trần. Đục lỗ Ø1 cm gần cạnh sau cho cáp CSI và dây đèn.",
+      "Dán gá camera ở tâm trần. Gắn camera ống kính hướng xuống, cạnh dài của ảnh nằm dọc trước–sau.",
+      "Cắt dây LED tại vạch cắt thành 2 đoạn 10 cm. Dán cách tâm 5,5 cm về hai bên, nối 2 đoạn bằng 2 sợi dây đỏ/đen (hàn vào mép đồng hoặc dùng kẹp nối LED), rồi phủ giấy can lên trên.",
+      "Chỉ dán băng keo vải ở một cạnh trần để trần mở lật được như nắp, tiện sửa bên trong.",
+      "Vặn ống kính cho nét ở khoảng 19 cm: dùng lệnh <code>s</code> trong calibrate.py để chụp thử rồi chỉnh dần."],
+  check:"Ảnh <code>calib.jpg</code> thấy trọn khay, nét, không bị lóa."},
+ {k:["pi"],t:"Raspberry Pi và đi dây",cam:[2.4,2.6,-3.3],tg:[0,1.4,-0.6],
+  need:"Pi 4, breadboard, adapter 5V 2A, tụ 1000µF, điện trở 220Ω/1k/2k, module MOSFET D4184, dây dupont",
+  do:["Gắn Pi lên mặt ngoài vách sau buồng chụp (đế đồng hoặc băng keo 2 mặt dày), breadboard đặt bên dưới.",
+      "Cáp CSI: cắm vào cổng CAMERA của Pi, mặt tiếp điểm kim loại hướng về phía cổng HDMI.",
+      "Servo: nâu → GND, đỏ → +5V adapter, cam → GPIO12 (servo A) và GPIO13 (servo B). Gắn tụ 1000µF giữa +5V và GND (chân âm vào GND).",
+      "HC-SR04: VCC → 5V (pin 2), GND → GND, TRIG → GPIO23. ECHO → 1kΩ → GPIO24, và nối thêm 2kΩ từ GPIO24 xuống GND.",
+      "Đèn trần: cắt dây USB của đèn, lấy sợi đỏ và đen. 5V (pin 4) → VIN+ module MOSFET, GND → VIN−, OUT+ → dây đỏ LED, OUT− → dây đen LED, chân TRIG/PWM → GPIO27 (pin 13). LED xanh/đỏ ở GPIO5/6 qua điện trở 220Ω. Còi ở GPIO26.",
+      "Nối GND của adapter với GND của Pi. Bó gọn dây bằng dây rút. Sơ đồ đầy đủ ở mục <a href=\"#hw\">Nối dây</a>."],
+  check:"Trước khi cắm điện, dùng đồng hồ đo: giữa 5V và GND không được chập."},
+ {k:[],t:"Cân chỉnh và chạy thử",cam:[2.6,2.9,3.5],tg:[0,1.3,0],test:true,
+  need:"Máy đã lắp xong, code đã sửa theo mục <a href=\"#code\">Phần mềm</a> (bins.json có rotate / tilt)",
+  do:["<code>python tools/calibrate.py</code>: dùng <code>c</code> và <code>t</code> dò góc thật ứng với 45° / 90° / 135° của từng servo, rồi ghi vào <code>bins.json</code> và <code>hardware.json</code>.",
+      "Lệnh <code>d</code>: đo khoảng cách khi khay trống (phải > 15 cm) và khi có pin AA ở tâm khay (phải < 12 cm).",
+      "Lệnh <code>l</code> rồi <code>s</code>: bật đèn và chụp <code>calib.jpg</code> để kiểm tra độ sáng và độ nét.",
+      "Chạy <code>python main.py --show-distance --keyboard</code>, đặt thử từng loại rác và xem có rơi đúng thùng không.",
+      "Chạy ổn rồi thì bật service systemd để máy tự chạy khi cắm điện."],
+  check:"10 lần thả liên tiếp đều rơi đúng thùng, khay về ngang sau mỗi lần thả."},
+];
+const gList=document.getElementById("gList"), gDetail=document.getElementById("gDetail"), gTitle=document.getElementById("gTitle"), gCount=document.getElementById("gCount");
+gList.innerHTML=GSTEPS.map((s,i)=>`<li data-i="${i+1}"><b>${i+1}</b><span>${s.t}</span></li>`).join("");
+gList.querySelectorAll("li").forEach(li=>li.onclick=()=>goGuide(+li.dataset.i));
+const GSv={a:90,b:90}; let gStep=0, gRun=0;
+function gHighlight(entries,on){ entries.forEach(e=>e.obj.traverse(o=>{ if(o.material&&o.material.emissive&&!o.userData.keepEm) o.material.emissive.setHex(on?0x7a3a00:0x000000); })); }
+function allEntries(){ return Object.values(gItems).flat(); }
+function goGuide(n){
+  gStep=Math.max(0,Math.min(GSTEPS.length,n)); const run=++gRun;
+  gList.querySelectorAll("li").forEach(li=>li.classList.toggle("on",+li.dataset.i===gStep));
+  gHighlight(allEntries(),false); GSv.a=90; GSv.b=90;
+  gCount.textContent=`${gStep} / ${GSTEPS.length}`;
+  if(gStep===0){
+    allEntries().forEach(e=>{ e.obj.visible=true; e.obj.position.copy(e.base); });
+    gTitle.textContent="Toàn máy đã lắp xong";
+    gDetail.innerHTML=`<b>Tổng quan:</b> ${GSTEPS.length} bước. Bấm "Bước ▶" để bắt đầu từ bước 1, hoặc chọn một bước trong danh sách. Dụng cụ cần có: dao rọc giấy, thước sắt, súng bắn keo nến, tua vít nhỏ, kéo, đồng hồ đo điện.`;
+    camTo([3.0,3.0,4.2],[0,1.2,0]); return;
+  }
+  const s=GSTEPS[gStep-1];
+  GSTEPS.forEach((st,i)=>st.k.forEach(k=>(gItems[k]||[]).forEach(e=>{ e.obj.visible=i<gStep; e.obj.position.copy(e.base); })));
+  const cur=s.k.flatMap(k=>gItems[k]||[]);
+  gHighlight(cur,true);
+  cur.forEach(e=>e.obj.position.copy(e.base).add(e.off));
+  tween(1.0,t=>cur.forEach(e=>e.obj.position.copy(e.base).addScaledVector(e.off,1-t)));
+  camTo(s.cam,s.tg);
+  gTitle.textContent=`Bước ${gStep}: ${s.t}`;
+  gDetail.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag">Bước ${gStep}/${GSTEPS.length}</span><b style="font-size:17px">${s.t}</b></div>
+    <p style="margin:8px 0"><b>Cần chuẩn bị:</b> ${s.need}</p>
+    <ol style="padding-left:20px;margin:0">${s.do.map(x=>`<li style="margin:4px 0">${x}</li>`).join("")}</ol>
+    <div class="note" style="margin-bottom:0"><b>Kiểm tra:</b> ${s.check}</div>`;
+  if(s.test) (async()=>{ await wait(900);
+    for(const b of BINS){ if(run!==gRun) return;
+      gTitle.textContent=`Chạy thử: thùng ${b.id} · ${b.name}`;
+      await servoTo(GSv,"a",b.rot,0.5); await wait(150); await servoTo(GSv,"b",b.tilt,0.4); await wait(350);
+      await servoTo(GSv,"b",90,0.4); await wait(100); await servoTo(GSv,"a",90,0.5); await wait(250); }
+    if(run===gRun) gTitle.textContent="Bước 12: chạy thử xong 4 thùng"; })();
+}
+function camTo(p,t){ const p0=GV.camera.position.clone(), t0=GV.controls.target.clone(), P1=new THREE.Vector3(...p), T1=new THREE.Vector3(...t);
+  tween(0.9,k=>{ GV.camera.position.lerpVectors(p0,P1,k); GV.controls.target.lerpVectors(t0,T1,k); }); }
+document.getElementById("gPrev").onclick=()=>goGuide(gStep-1);
+document.getElementById("gNext").onclick=()=>goGuide(gStep+1);
+document.getElementById("gAll").onclick=()=>goGuide(0);
+document.getElementById("gReplay").onclick=()=>goGuide(gStep);
+document.getElementById("gOpacity").oninput=e=>cartonMats.forEach(m=>m.opacity=+e.target.value);
+goGuide(0);
+/* ================= TIMING CHART ================= */
+(function(){
+  const svg=document.getElementById("timing"), NS="http://www.w3.org/2000/svg";
+  const X0=150, X1=940, T=5600, x=t=>X0+(X1-X0)*t/T;
+  const el=(tag,attrs,txt)=>{const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(txt!=null) e.textContent=txt; svg.appendChild(e); return e;};
+  const css=getComputedStyle(document.documentElement), C=n=>css.getPropertyValue(n).trim();
+  const states=[["chờ ổn định",0,500],["SETTLE",500,1000],["CAPTURE",1000,1600],["CLASSIFY",1600,1750],["ROUTE",1750,2350],["DROP",2350,3150],["AFTER",3150,3550],["REST",3550,4050],["COOLDOWN",4050,5600]];
+  const rows=[["Trạng thái",20],["HC-SR04",72],["LED + camera",112],["Servo A (xoay)",152],["Servo B (lật)",242]];
+  rows.forEach(([n,y])=>el("text",{x:10,y:y+20,fill:C("--ink"),"font-size":13,"font-weight":600},n));
+  // grid
+  for(let t=0;t<=T;t+=500){ el("line",{x1:x(t),x2:x(t),y1:16,y2:330,stroke:C("--line"),"stroke-width":1}); el("text",{x:x(t),y:348,fill:C("--muted"),"font-size":11,"text-anchor":"middle"},t); }
+  el("text",{x:X1,y:360,fill:C("--muted"),"font-size":11,"text-anchor":"end"},"ms");
+  // states
+  states.forEach(([n,a,b],i)=>{ el("rect",{x:x(a)+1,y:20,width:x(b)-x(a)-2,height:30,rx:5,fill:i%2?"color-mix(in srgb,"+C("--accent")+" 22%,transparent)":"color-mix(in srgb,"+C("--accent")+" 40%,transparent)"});
+    el("text",{x:(x(a)+x(b))/2,y:39,fill:C("--ink"),"font-size":10.5,"text-anchor":"middle"},n); });
+  // sonar
+  el("rect",{x:x(0),y:76,width:x(1000)-x(0),height:22,rx:4,fill:C("--wsig"),opacity:.75});
+  el("text",{x:x(500),y:91,fill:"#1b1206","font-size":11,"text-anchor":"middle"},"vật < 12 cm, giữ 500 ms → trigger");
+  el("line",{x1:x(500),x2:x(500),y1:70,y2:104,stroke:C("--ink"),"stroke-width":2});
+  // led
+  el("rect",{x:x(1000),y:116,width:x(1600)-x(1000),height:22,rx:4,fill:C("--b1"),opacity:.8});
+  el("text",{x:x(1300),y:131,fill:"#fff","font-size":11,"text-anchor":"middle"},"LED bật · 200 ms + 5 khung");
+  el("rect",{x:x(1600),y:116,width:x(1750)-x(1600),height:22,rx:4,fill:C("--b2"),opacity:.8});
+  el("text",{x:x(1675),y:131,fill:"#fff","font-size":10,"text-anchor":"middle"},"AI");
+  // servo plots
+  function plot(y0,pts,label){
+    const yv=a=>y0+70-(a/180)*70;
+    [45,90,135].forEach(a=>{ el("line",{x1:X0,x2:X1,y1:yv(a),y2:yv(a),stroke:C("--line"),"stroke-dasharray":"2 4"}); el("text",{x:X0-6,y:yv(a)+4,fill:C("--muted"),"font-size":10,"text-anchor":"end"},a+"°"); });
+    const solid=pts.filter(p=>p[0]<=4050).map(p=>`${x(p[0])},${yv(p[1])}`).join(" ");
+    el("polyline",{points:solid,fill:"none",stroke:C("--accent"),"stroke-width":3,"stroke-linejoin":"round"});
+    el("line",{x1:x(4050),x2:x(5600),y1:yv(90),y2:yv(90),stroke:C("--accent"),"stroke-width":3,"stroke-dasharray":"6 6",opacity:.6});
+    label.forEach(([t,txt])=>el("text",{x:x(t),y:y0+86,fill:C("--muted"),"font-size":10.5,"text-anchor":"middle"},txt));
+  }
+  plot(152,[[0,90],[1750,90],[1880,45],[3550,45],[3680,90],[4050,90]],[[1815,"→1000µs"],[3615,"→1500µs"],[4600,"detach"]]);
+  plot(242,[[0,90],[2350,90],[2480,45],[3150,45],[3280,90],[4050,90]],[[2415,"→1000µs"],[3215,"→1500µs"]]);
+})();
+
+
+/* ================= SIDE VIEW (kích thước) ================= */
+(function(){
+  const svg=document.getElementById("sideView"), NS="http://www.w3.org/2000/svg";
+  const css=getComputedStyle(document.documentElement), C=n=>css.getPropertyValue(n).trim();
+  const K=10, X=c=>390+c*K, Y=c=>500-c*K;      // cm -> px; gốc = mặt đế tại tâm trục
+  const el=(tag,a,t)=>{const e=document.createElementNS(NS,tag); for(const k in a) e.setAttribute(k,a[k]); if(t!=null) e.textContent=t; svg.appendChild(e); return e;};
+  const rect=(x0,y0,x1,y1,st)=>el("rect",Object.assign({x:X(Math.min(x0,x1)),y:Y(Math.max(y0,y1)),width:Math.abs(x1-x0)*K,height:Math.abs(y1-y0)*K},st));
+  const ink=C("--ink"), mut=C("--muted"), acc=C("--accent");
+  const line={fill:"none",stroke:ink,"stroke-width":1.5};
+  rect(-15,-1,15,0,{fill:"#8a6f4d"});                                        // đế
+  rect(-14,0,14,16,Object.assign({},line,{"stroke-dasharray":"5 4"}));       // vỏ dưới
+  rect(-14,15.7,-11,16.2,{fill:"#8a6f4d"}); rect(11,15.7,14,16.2,{fill:"#8a6f4d"}); // sàn ngăn
+  [[-7.7,"#6b7280"],[7.7,"#2f6fd6"]].forEach(([c,f])=>rect(c-5.5,0,c+5.5,14,{fill:f,opacity:.55,stroke:f}));
+  rect(-11,16,11,41.6,line);                                                 // buồng chụp
+  rect(10.6,22.2,11.4,32.6,{fill:C("--bg"),stroke:acc,"stroke-width":2});    // cửa nạp
+  rect(-1.5,0,1.5,15.4,{fill:"#b08a5e"});                                    // cột
+  rect(-1.1,15.4,1.1,17.7,{fill:"#2f6fd6"});                                 // servo A
+  rect(-1.6,17.9,1.6,18.3,{fill:"#f2efe6",stroke:ink,"stroke-width":.8});    // tấm nối
+  rect(-0.6,18.3,0.6,21.8,{fill:"#2f6fd6",opacity:.8});                      // servo B + kê
+  rect(-8,21.6,8,21.9,{fill:"#f7f5ef",stroke:ink,"stroke-width":.8});        // đáy khay
+  rect(-8,21.6,8,23.6,{fill:"none",stroke:acc,"stroke-width":2});            // thành khay
+  el("circle",{cx:X(0),cy:Y(22.7),r:3.5,fill:acc});
+  const a=45*Math.PI/180;
+  el("line",{x1:X(-8*Math.cos(a)),y1:Y(22.7+8*Math.sin(a)),x2:X(8*Math.cos(a)),y2:Y(22.7-8*Math.sin(a)),stroke:acc,"stroke-width":2,"stroke-dasharray":"6 4",opacity:.7});
+  rect(-1.5,40.6,1.5,41.6,{fill:"#1f7a3d"}); rect(-0.6,39.8,0.6,40.6,{fill:"#1d1f22"}); // camera
+  rect(-7,41.1,-4,41.6,{fill:"#fff",stroke:mut}); rect(4,41.1,7,41.6,{fill:"#fff",stroke:mut}); // LED
+  el("path",{d:`M${X(0)} ${Y(39.8)} L${X(-9.5)} ${Y(22.2)} M${X(0)} ${Y(39.8)} L${X(9.5)} ${Y(22.2)}`,stroke:C("--b1"),"stroke-width":1.2,"stroke-dasharray":"4 4",fill:"none"});
+  rect(-11,24.6,-10.2,26.6,{fill:"#1f5fbf"});                                // HC-SR04
+  el("path",{d:`M${X(-10.2)} ${Y(25.6)} L${X(10.4)} ${Y(25.6)}`,stroke:C("--wsig"),"stroke-width":1.5,"stroke-dasharray":"3 4"});
+  const lab=(x,y,t)=>el("text",{x:X(x),y:Y(y),fill:mut,"font-size":12},t);
+  lab(-10.6,39.2,"Buồng chụp (lót trắng)"); lab(2,42.3,"Camera OV5647"); lab(-10,27.6,"HC-SR04");
+  lab(9.5,33.6,"Cửa nạp"); lab(-12.8,8,"Thùng sau"); lab(3,8,"Thùng trước");
+  lab(1.8,16.2,"Servo A"); lab(1,20,"Servo B"); lab(1.8,13,"Cột 3×3");
+  function dimV(x,y0,y1,t,side=1){
+    const xx=X(x); el("line",{x1:xx,x2:xx,y1:Y(y0),y2:Y(y1),stroke:ink,"stroke-width":1});
+    [y0,y1].forEach(y=>el("line",{x1:xx-5,x2:xx+5,y1:Y(y),y2:Y(y),stroke:ink,"stroke-width":1}));
+    el("text",{x:xx+side*7,y:(Y(y0)+Y(y1))/2+4,fill:ink,"font-size":12.5,"font-weight":600,"text-anchor":side>0?"start":"end"},t);
+  }
+  function dimH(y,x0,x1,t,below=false){
+    const yy=Y(y); el("line",{x1:X(x0),x2:X(x1),y1:yy,y2:yy,stroke:ink,"stroke-width":1});
+    [x0,x1].forEach(x=>el("line",{x1:X(x),x2:X(x),y1:yy-5,y2:yy+5,stroke:ink,"stroke-width":1}));
+    el("text",{x:(X(x0)+X(x1))/2,y:below?yy+17:yy-7,fill:ink,"font-size":12.5,"font-weight":600,"text-anchor":"middle"},t);
+  }
+  dimV(-18.5,0,41.6,"42",-1); dimV(-16,0,16,"16",-1); dimV(-16,16,41.6,"26",-1);
+  dimV(17,0,22.7,"22,7 (trục lật)"); dimV(17,22.7,40,"≈ 19 (camera → khay)");
+  dimV(13.6,22.2,32.6,"10");
+  dimH(-2.5,-14,14,"28 (vỏ dưới)",true); dimH(45,-11,11,"22 (lòng buồng chụp)"); dimH(34.5,-8,8,"16 (khay)");
+  dimH(11.5,2.2,13.2,"11");
+})();
+
+/* ================= NESTING (bản cắt carton 80 × 120) ================= */
+(function(){
+  const svg=document.getElementById("nestView"), NS="http://www.w3.org/2000/svg";
+  const css=getComputedStyle(document.documentElement), C=n=>css.getPropertyValue(n).trim();
+  const K=10, O=10;                                   // 1 cm = 10 px, lề 10 px
+  const el=(tag,a,t)=>{const e=document.createElementNS(NS,tag); for(const k in a) e.setAttribute(k,a[k]); if(t!=null) e.textContent=t; svg.appendChild(e); return e;};
+  const ink=C("--ink"), mut=C("--muted"), acc=C("--accent");
+  const defs=document.createElementNS(NS,"defs");
+  defs.innerHTML=`<pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="${mut}" stroke-width="1.5"/></pattern>`;
+  svg.appendChild(defs);
+  // tấm bìa
+  el("rect",{x:O,y:O,width:120*K,height:80*K,fill:"#c9a16b",opacity:.18,stroke:mut,"stroke-width":1.5,"stroke-dasharray":"8 6"});
+  el("text",{x:O+120*K-8,y:O+80*K-10,fill:mut,"font-size":14,"text-anchor":"end"},"Bìa carton 3 lớp 80 × 120 cm · phần dư làm nẹp, ke góc");
+  const P=(x,y,w,h,id,name,fill,ly)=>{ const cy=ly==null?y+h/2:ly;
+    el("rect",{x:O+x*K,y:O+y*K,width:w*K,height:h*K,fill:fill||"#c9a16b",opacity:.55,stroke:ink,"stroke-width":1.5});
+    el("text",{x:O+(x+w/2)*K,y:O+cy*K-2,fill:ink,"font-size":15,"font-weight":700,"text-anchor":"middle"},id);
+    el("text",{x:O+(x+w/2)*K,y:O+cy*K+16,fill:ink,"font-size":12,"text-anchor":"middle"},name);
+  };
+  const hole=(x,y,w,h,t)=>{ el("rect",{x:O+x*K,y:O+y*K,width:w*K,height:h*K,fill:"url(#hatch)",stroke:ink,"stroke-width":1,"stroke-dasharray":"4 3"}); if(t) el("text",{x:O+(x+w/2)*K,y:O+(y+h/2)*K+4,fill:ink,"font-size":11,"text-anchor":"middle"},t); };
+  const fold=(x,y0,y1)=>el("line",{x1:O+x*K,x2:O+x*K,y1:O+y0*K,y2:O+y1*K,stroke:acc,"stroke-width":1.5,"stroke-dasharray":"5 4"});
+  // hàng 1: tầng thùng
+  P(0,0,28,16,"L","vách trước 28×16"); P(28,0,28,16,"L","vách sau 28×16");
+  P(56,0,28,16,"D","cửa hông 28×16","#e0b98a"); P(84,0,28,16,"D","cửa hông 28×16","#e0b98a");
+  // hàng 2: buồng chụp
+  P(0,16,23,26,"C1","vách trước 23×26","#f3e6cf",19.5); hole(5,16+26-6.2-10,13,10,"cửa 13×10");
+  P(23,16,23,26,"C2","vách sau 23×26","#f3e6cf");
+  P(46,16,22,26,"C3","hông 22×26","#f3e6cf"); P(68,16,22,26,"C3","hông 22×26","#f3e6cf");
+  [[91,17],[102,17],[91,28],[102,28]].forEach(([x,y])=>P(x,y,11,11,"b","đáy 11×11","#d7c3a3"));
+  // hàng 3: sàn ngăn + 4 dải thân thùng
+  P(0,42,28,28,"","","#b9925e"); hole(3,45,22,22,"→ T: trần 22×22");
+  el("text",{x:O+14*K,y:O+43.6*K+4,fill:ink,"font-size":12,"text-anchor":"middle"},"S: sàn ngăn 28×28");
+  [[28,42],[28,56],[73,42],[73,56]].forEach(([x,y])=>{ P(x,y,45,14,"B","thân thùng 45×14 (gấp)","#d7c3a3"); [11,22,33,44].forEach(f=>fold(x+f,y,y+14)); });
+  // thước
+  el("text",{x:O,y:O+80*K+28,fill:mut,"font-size":13},"0");
+  for(let c=10;c<=120;c+=10){ el("line",{x1:O+c*K,x2:O+c*K,y1:O+80*K+6,y2:O+80*K+14,stroke:mut}); el("text",{x:O+c*K,y:O+80*K+30,fill:mut,"font-size":12,"text-anchor":"middle"},c); }
+})();
+/* ================= BOM ================= */
+const BOM=[
+  {n:"Raspberry Pi 4 (2GB)",q:1,p:1350,own:true,note:"Đã có"},
+  {n:"Thẻ microSD 32GB class 10",q:1,p:90,own:true,note:"Đã có"},
+  {n:"Nguồn Pi 5V 3A USB-C",q:1,p:120,own:true,note:"Đã có"},
+  {n:"Camera Pi OV5647 5MP (clone) + cáp CSI 30 cm",q:1,p:110,own:false,note:"Webcam USB cũ cũng chạy được (0đ)"},
+  {n:"Servo SG90",q:3,p:22,own:false,note:"2 con dùng + 1 dự phòng; MG90S (~40k) nếu muốn bền hơn"},
+  {n:"Cảm biến siêu âm HC-SR04",q:1,p:20,own:false,note:""},
+  {n:"Adapter 5V 2A + jack DC cái",q:1,p:50,own:false,note:"Riêng cho servo; sạc điện thoại 5V 2A cũ cắt đầu cũng được"},
+  {n:"Tụ hóa 1000µF 16V",q:2,p:3,own:false,note:"Chống sụt áp khi servo khởi động"},
+  {n:"Điện trở 220Ω ×2, 1kΩ, 2kΩ",q:1,p:5,own:false,note:"Chia áp ECHO + LED báo; bỏ nếu dùng HC-SR04P và module LED"},
+  {n:"Module MOSFET D4184 (hoặc AO3400)",q:1,p:15,own:false,note:"Bật/tắt đèn bằng GPIO27; không mua IRF520"},
+  {n:"LED 5 mm xanh + đỏ",q:1,p:5,own:false,note:"Đèn báo"},
+  {n:"LED dây 5V USB 2835 trắng, 1 m (không vỏ silicon)",q:1,p:30,own:false,note:"Cắt 2 đoạn 10 cm làm đèn trần"},
+  {n:"Còi buzzer active 5V",q:1,p:5,own:false,note:""},
+  {n:"Breadboard 400 lỗ + dây dupont",q:1,p:45,own:false,note:"Sau này có thể hàn lên PCB lỗ (~10k)"},
+  {n:"Formex 3 mm khổ A4",q:1,p:15,own:false,note:"Tấm nối, miếng kê, cột đỡ chốt, gá camera"},
+  {n:"Vít M3 + đai ốc, que kem, que xiên tre",q:1,p:10,own:false,note:"Chốt đỡ khay + gia cố carton"},
+  {n:"Hộp nhựa làm khay (~16 × 12 cm)",q:1,p:10,own:false,note:"Hộp bút / hộp thực phẩm cũ: 0đ"},
+  {n:"Khúc gỗ 3 × 3 × 16 cm (cột servo A)",q:1,p:5,own:false,note:"Gỗ vụn / ống giấy cứng nhồi bìa: 0đ"},
+  {n:"Bìa carton 3 lớp 80 × 120 cm (vỏ, buồng chụp, sàn, 4 thùng)",q:1,p:15,own:false,note:"Hoặc bung 2 thùng carton cũ: 0đ. Xem mục Bản cắt"},
+  {n:"Giấy decal trắng / giấy can",q:1,p:10,own:false,note:"Lót buồng chụp + tán sáng đèn"},
+  {n:"Đế MDF 3 mm 30 × 30 cm",q:1,p:20,own:false,note:"Hoặc 3 lớp carton dán chồng: 0đ"},
+  {n:"Keo nến (thỏi) + dây rút",q:1,p:20,own:false,note:"Súng bắn keo ~40k nếu chưa có"},
+  {n:"Băng keo vải (bản lề cửa) + băng keo trong",q:1,p:15,own:false,note:""},
+  {n:"Nam châm hít cửa",q:2,p:5,own:false,note:"Giữ cửa hông đóng"},
+  {n:"Công tắc lưỡi gà (reed) + nam châm",q:2,p:5,own:false,note:"Tùy chọn: dừng máy khi mở cửa"},
+  {n:"Túi nilon lót + dây chun",q:1,p:10,own:false,note:"Đổ rác bằng cách nhấc túi"},
+];
+const tb=document.querySelector("#bomTbl tbody");
+let ownState={}; try{ ownState=JSON.parse(localStorage.getItem("smartbin-bom-own3")||"{}"); }catch(e){}
+const fmt=v=>(v*1000).toLocaleString("vi-VN")+"đ";
+function renderBom(){
+  let total=0;
+  tb.innerHTML=BOM.map((r,i)=>{ const own=ownState[i]??r.own, sub=r.q*r.p; if(!own) total+=sub;
+    return `<tr style="${own?'opacity:.5':''}"><td><input type="checkbox" data-i="${i}" ${own?'checked':''} aria-label="Đã có"></td><td>${r.n}</td><td class="num">${r.q}</td><td class="num">${fmt(r.p)}</td><td class="num">${fmt(sub)}</td><td class="muted" style="font-size:13.5px">${r.note}</td></tr>`; }).join("");
+  document.getElementById("bomTotal").textContent=fmt(total);
+  document.getElementById("bigTotal").textContent="≈ "+fmt(total);
+  tb.querySelectorAll("input").forEach(c=>c.onchange=e=>{ ownState[e.target.dataset.i]=e.target.checked; try{localStorage.setItem("smartbin-bom-own3",JSON.stringify(ownState));}catch(err){} renderBom(); });
+}
+renderBom();
+
+/* ================= LOOP ================= */
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{ V.scene.background=sceneBg(); AV.scene.background=sceneBg(); GV.scene.background=sceneBg(); });
+const clock=new THREE.Clock();
+function loop(){
+  const dt=Math.min(clock.getDelta(),0.05)*speed;
+  for(let i=tweens.length-1;i>=0;i--){ const tw=tweens[i]; tw.t+=dt; const k=Math.min(1,tw.t/tw.dur); tw.fn(tw.ez(k)); if(k>=1){ tweens.splice(i,1); tw.res(); } }
+  updateServoUI();
+  setServo(aunit,AS.a,AS.b); applyExplode();
+  V.controls.update(); V.renderer.render(V.scene,V.camera);
+  AV.controls.update(); AV.renderer.render(AV.scene,AV.camera); updateLabels();
+  setServo(gu,GSv.a,GSv.b); GV.controls.update(); GV.renderer.render(GV.scene,GV.camera);
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
