@@ -1,14 +1,31 @@
 """Cảm biến HC-SR04, đèn buồng chụp, LED, còi, công tắc cửa trên Raspberry Pi (gpiozero).
 Servo không ở đây: dùng PWM phần cứng qua smartbin/servo.py."""
+import logging
+
 from gpiozero import LED, Button, Buzzer, DistanceSensor
+
+log = logging.getLogger(__name__)
 
 
 class UltrasonicSensor:
+    NO_DATA_CM = 999.0      # chưa đo được lần nào (không có tiếng vang): coi như khay trống
+
     def __init__(self, trig, echo):
-        # queue_len=5: gpiozero lấy trung vị 5 lần đo -> lọc nhiễu
-        self.s = DistanceSensor(echo=echo, trigger=trig, max_distance=2.0, queue_len=5)
+        # queue_len=5: gpiozero lấy trung vị 5 lần đo -> lọc nhiễu.
+        # partial=True: KHÔNG chặn chờ đủ 5 lần đo. Mặc định gpiozero đợi hàng đợi đầy mới trả số; lần đo
+        # không có tiếng vang bị bỏ, nên nếu HC-SR04 không phản hồi (lỏng dây, sai chân) thì .distance treo
+        # mãi -> cả vòng chính đứng, phím Enter cũng không chạy.
+        self.s = DistanceSensor(echo=echo, trigger=trig, max_distance=2.0, queue_len=5, partial=True)
+        self._warned = False
 
     def distance_cm(self):
+        q = getattr(self.s, "_queue", None)
+        if q is not None and not q.queue:      # partial=True mà hàng đợi rỗng thì gpiozero trả 0 (= có vật!)
+            if not self._warned:
+                log.warning("Siêu âm chưa đo được lần nào (không có tiếng vang): kiểm tra dây TRIG/ECHO, "
+                            "nguồn 5V, cầu chia áp ở ECHO. Tạm coi như khay trống.")
+                self._warned = True
+            return self.NO_DATA_CM
         return self.s.distance * 100
 
     def close(self):
