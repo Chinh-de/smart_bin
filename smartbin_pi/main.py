@@ -34,6 +34,7 @@ def setup_logging(data_dir, verbose):
 
 
 def _on_sigterm(*_):
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)   # SIGTERM lần 2 không được cắt ngang lúc đưa servo về nghỉ
     raise KeyboardInterrupt        # systemctl stop gửi SIGTERM: đi qua khối finally để tắt đèn, đưa servo về nghỉ
 
 

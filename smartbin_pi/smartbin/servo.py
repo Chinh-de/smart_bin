@@ -5,11 +5,11 @@ Xung servo do bộ PWM phần cứng của chip tạo (không rung như PWM ph�
     dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4
 rồi reboot (GPIO12 = kênh 0, GPIO13 = kênh 1). Đổi sang chân khác thì dùng 18/19, xem PIN_TO_PWM_CHANNEL.
 
-Quy tắc an toàn (theo thiết kế):
-- không bao giờ chạy 2 servo cùng lúc (dòng đỉnh < 1 A);
-- chỉ lật khi đã xoay xong, chỉ xoay về khi khay đã nằm ngang (đầu khay không quét vào thành thùng);
-- đứng yên thì ngắt xung (servo không rung, không nóng);
-- khởi động: đưa về vị trí nghỉ trước khi nhận vật (servo có thể nằm ở góc bất kỳ sau lần tắt nguồn)."""
+Logic điều khiển giống hệt tools/servo_test.py (bản đã test chạy ổn trên Pi):
+- khởi động: đặt thẳng 2 servo về vị trí nghỉ, chờ 1.2 s rồi ngắt xung;
+- thả rác: xoay ngang -> chờ settle_s -> lật dọc -> chờ hold_s -> về nghỉ;
+- về nghỉ: dọc về ngang trước, rồi mới xoay ngang về giữa, ngắt xung (không cho Ctrl+C cắt ngang);
+- quay mượt từng servo một (smootherstep), đứng yên thì ngắt xung."""
 import math
 import signal
 import threading
@@ -130,26 +130,16 @@ class SysfsPwm:
 
 
 @contextmanager
-def hold_signals():
-    """Không để Ctrl+C / systemctl stop cắt ngang lúc đang về nghỉ (khay còn nghiêng).
-    Tín hiệu đến trong lúc này được giữ lại và phát ra (KeyboardInterrupt) khi về nghỉ xong."""
+def ignore_sigint():
+    """Chặn Ctrl+C lần 2 khi đang về nghỉ, để không bỏ dở lúc máng còn nghiêng (như servo_test.py)."""
     if threading.current_thread() is not threading.main_thread():
-        yield
+        yield           # signal.signal chỉ gọi được ở luồng chính
         return
-    pending = []
-
-    def notice(signum, frame):
-        pending.append(signum)
-        print("\nđang về vị trí nghỉ, đợi vài giây (không ngắt giữa chừng)...", flush=True)
-
-    old = {s: signal.signal(s, notice) for s in (signal.SIGINT, signal.SIGTERM)}
+    old = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
         yield
     finally:
-        for s, h in old.items():
-            signal.signal(s, h)
-    if pending:
-        raise KeyboardInterrupt
+        signal.signal(signal.SIGINT, old)
 
 
 def validate(servo, bins):
@@ -245,17 +235,15 @@ class PanTilt:
         return self.pos.get("tilt") == self.cfg["tilt_rest"]
 
     def startup(self):
-        """Nhảy thẳng về vị trí nghỉ, TỪNG servo một (dọc trước), chờ mỗi con tới nơi rồi mới ngắt xung.
-        Không cho 2 servo khởi động cùng lúc: dòng đỉnh gấp đôi làm sụt nguồn 5V, servo đứng yên chỗ cũ."""
+        """Nhảy thẳng về vị trí nghỉ (chưa biết servo đang ở đâu), chờ tới nơi rồi ngắt xung."""
         self.snap("tilt", self.cfg["tilt_rest"])
-        time.sleep(STARTUP_WAIT_S)
         self.snap("pan", self.cfg["pan_rest"])
         time.sleep(STARTUP_WAIT_S)
         self.release()
 
     def home(self):
         """Dọc về ngang trước, rồi mới xoay ngang về giữa (tránh quét khay khi đang nghiêng), ngắt xung."""
-        with hold_signals():
+        with ignore_sigint():
             self.move("tilt", self.cfg["tilt_rest"])
             self.move("pan", self.cfg["pan_rest"])
             self.release()
