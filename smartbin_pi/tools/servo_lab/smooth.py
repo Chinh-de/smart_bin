@@ -2,8 +2,8 @@
 (https://en.bioerrorlog.work/entry/raspberry-pi-multi-servo): góc tính bằng hàm sin/cos,
 cập nhật mỗi 10 ms, mỗi nhịp tăng pha t thêm vài độ.
 
-    python tools/servo_smooth.py              # 1 servo ở GPIO12
-    python tools/servo_smooth.py 12 13        # servo 1 ở GPIO12, servo 2 ở GPIO13
+    python tools/servo_lab/run.py smooth              # 1 servo ở GPIO12
+    python tools/servo_lab/run.py smooth 12 13        # servo 1 ở GPIO12, servo 2 ở GPIO13
 
 Lệnh:
     90          servo 1 quay mượt tới 90°
