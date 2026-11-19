@@ -19,8 +19,8 @@
     "pwm_chip": null,
 
     "pan_rest": 90,
-    "tilt_rest": 100,
-    "tilt_delta": 38,
+    "tilt_rest": 97,
+    "tilt_delta": 42,
     "tilt_sign": 1,
 
     "speed_dps": 50,
@@ -30,8 +30,8 @@
   },
 
   "trigger_mode": "hand",
-  "trigger_cm": 12,
-  "clear_cm": 15,
+  "trigger_cm": 20,
+  "clear_cm": 25,
   "near_hold_ms": 3000,
   "distance_window_ms": 500,
   "lost_as_object": false,
