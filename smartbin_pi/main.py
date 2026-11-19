@@ -58,6 +58,7 @@ def main():
                     help="chỉ test nhận diện: webcam + model thật, KHÔNG cần siêu âm/servo/GPIO; nhấn Enter để chụp")
     ap.add_argument("--show-distance", action="store_true",
                     help="in khoảng cách siêu âm mỗi lần đọc (mặc định ~1 s/lần, hardware.json -> distance_log_s)")
+    ap.add_argument("--no-scale", action="store_true", help="không đọc cân load cell")
     ap.add_argument("--config", default="config")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -132,6 +133,16 @@ def main():
         streamer = Streamer(app["server_url"], app["api_key"], app["device_id"], camera,
                             sc.get("fps", 5), sc.get("width", 480), sc.get("quality", 70))
 
+    scale = None
+    if hw["pins"].get("hx711_dt") is not None and not args.no_scale:
+        from smartbin.scale import FakeHx711, Hx711, Scale
+        try:
+            hx = FakeHx711() if fake_io else Hx711(hw["pins"]["hx711_dt"], hw["pins"]["hx711_sck"])
+            scale = Scale(hx, *((app["server_url"], app["api_key"], app["device_id"]) if uploader else ()))
+            log.info("Cân HX711: DT GPIO%s, SCK GPIO%s", hw["pins"]["hx711_dt"], hw["pins"]["hx711_sck"])
+        except SystemExit as e:          # cân là phụ: lỗi cân không được làm dừng thùng rác
+            log.error("Không mở được cân, chạy tiếp không có cân: %s", e)
+
     ctl = Controller(app, hw, sensor, camera, clf, decider, servos, ind, uploader, ROOT, door)
     if args.show_distance:
         ctl.distance_log_s = hw["poll_ms"] / 1000
@@ -144,7 +155,7 @@ def main():
         log.info("Dừng.")
     finally:
         # servo đóng trước: về vị trí nghỉ rồi ngắt xung
-        for x in (servos, streamer, uploader, camera, ind, door, sensor):
+        for x in (servos, streamer, scale, uploader, camera, ind, door, sensor):
             if x:
                 try:
                     x.close()

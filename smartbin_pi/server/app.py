@@ -215,12 +215,41 @@ def api_stream_want(device_id):
     return jsonify(watch=s.viewers if s else 0)
 
 
+# ---------------- cân (load cell) ----------------
+# Pi đẩy số gram mới nhất mỗi giây; chỉ giữ trong RAM, hiện cạnh video.
+WEIGHTS = {}            # device_id -> {"grams", "calibrated", "error", "ts"}
+WEIGHT_STALE_S = 5
+
+
+@app.post("/api/weight/<device_id>")
+def api_weight(device_id):
+    require_key()
+    d = request.get_json(silent=True) or {}
+    g = d.get("grams")
+    if not SAFE_ID.match(device_id) or not (g is None or isinstance(g, (int, float))):
+        return jsonify(error="dữ liệu cân không hợp lệ"), 400
+    if device_id in WEIGHTS or len(WEIGHTS) < MAX_STREAMS:
+        WEIGHTS[device_id] = {"grams": g, "calibrated": bool(d.get("calibrated")),
+                              "error": str(d["error"])[:200] if d.get("error") else None, "ts": time.time()}
+    return jsonify(status="ok")
+
+
+def weight_of(device_id):
+    w = WEIGHTS.get(device_id)
+    if not w or time.time() - w["ts"] > WEIGHT_STALE_S:
+        return None
+    return {k: w[k] for k in ("grams", "calibrated", "error")}
+
+
 @app.get("/api/stream/state")
 def api_stream_state():
     with STREAMS_LOCK:
-        items = list(STREAMS.items())
-    return jsonify({d: {"live": s.ts > 0 and time.time() - s.ts < STREAM_LIVE_S, "viewers": s.viewers}
-                    for d, s in items})
+        items = dict(STREAMS)
+    out = {d: {"live": s.ts > 0 and time.time() - s.ts < STREAM_LIVE_S, "viewers": s.viewers}
+           for d, s in items.items()}
+    for d in set(out) | set(WEIGHTS):
+        out.setdefault(d, {"live": False, "viewers": 0})["weight"] = weight_of(d)
+    return jsonify(out)
 
 
 @app.get("/stream/<device_id>.mjpg")

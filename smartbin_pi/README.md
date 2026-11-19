@@ -132,6 +132,10 @@ Chưa nối siêu âm/servo mà chỉ muốn thử nhận diện bằng webcam t
 (webcam + model thật; siêu âm, servo, đèn, còi được giả lập và in ra màn hình; nhấn **Enter** để chụp; không cần gpiozero).
 
 
+**Cân:** `main.py` đọc load cell HX711 (chân `hx711_dt`/`hx711_sck`) ở luồng nền, đổi ra gram theo `config/loadcell.json`
+(tạo bằng `tools/loadcell_test.py`: `t` rồi `c <gram>`), gửi lên server mỗi giây; trang chủ hiện số gram cạnh video.
+Cân lỗi/chưa nối thì thùng rác vẫn chạy bình thường. Tắt bằng `--no-scale`. Không chạy `loadcell_test.py` cùng lúc với `main.py`.
+
 **Video trực tiếp:** xem ngay ở trang chủ `http://<ip server>:5000/`. Pi đẩy từng khung JPEG lên server (`smartbin/streamer.py`),
 server phát lại dạng MJPEG. Pi chỉ mã hoá + gửi khi có người đang xem. Chỉnh trong `config/app.json`, mục `stream`
 (`enabled`, `fps`, `width`, `quality`). Không chạy khi dùng `--no-upload`. Trang chủ chưa có đăng nhập, ai vào được server đều xem được.

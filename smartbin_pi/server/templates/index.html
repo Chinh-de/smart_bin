@@ -2,14 +2,21 @@
 {% from "_macros.html" import result_tag, bars %}
 {% block body %}
 <h2>Video trực tiếp</h2>
-<div id="live" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 480px));">
+<div id="live" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 640px));">
   {% for d in devices %}
   <div class="card" data-id="{{ d.id }}">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
       <b>{{ d.id }}</b>
       <span class="muted"><span class="dot off-dot" data-dot></span><span data-label>Đang nối…</span></span>
     </div>
-    <img data-cam alt="video {{ d.id }}" style="width:100%; aspect-ratio:4/3; object-fit:contain; background:#111; border-radius:6px; display:block;">
+    <div style="display:flex; gap:10px; align-items:stretch; flex-wrap:wrap;">
+      <img data-cam alt="video {{ d.id }}" style="flex:1 1 280px; min-width:0; aspect-ratio:4/3; object-fit:contain; background:#111; border-radius:6px; display:block;">
+      <div class="card" style="flex:0 0 130px; display:flex; flex-direction:column; justify-content:center; text-align:center; margin:0;">
+        <div class="muted">Cân</div>
+        <div class="big" data-weight>–</div>
+        <div class="muted" data-weight-note>Chưa có số liệu</div>
+      </div>
+    </div>
     <button data-toggle style="margin-top:8px; padding:6px 10px;">Tạm dừng</button>
     <div class="muted" style="margin-top:6px;">Thiết bị chỉ gửi hình khi có người xem. Đèn chiếu chỉ bật lúc chụp nên hình có thể tối.</div>
   </div>
@@ -63,6 +70,7 @@
 function setupCard(card) {
   const id = card.dataset.id, img = card.querySelector("[data-cam]"), btn = card.querySelector("[data-toggle]");
   const dot = card.querySelector("[data-dot]"), label = card.querySelector("[data-label]");
+  const wVal = card.querySelector("[data-weight]"), wNote = card.querySelector("[data-weight-note]");
   let playing = true, retry = null;
   const start = () => { clearTimeout(retry); img.src = `/stream/${encodeURIComponent(id)}.mjpg?t=${Date.now()}`; };
   img.onerror = () => { if (playing) retry = setTimeout(start, 3000); };   // server đóng luồng khi lâu không có hình: nối lại
@@ -78,9 +86,16 @@ function setupCard(card) {
       const live = !!(s && s.live) && playing;
       dot.className = "dot " + (live ? "on-dot" : "off-dot");
       label.textContent = !playing ? "Đã tạm dừng" : live ? "Đang phát" : "Chờ thiết bị gửi hình…";
+      const w = s && s.weight;
+      if (!w) { wVal.textContent = "–"; wNote.textContent = "Chưa có số liệu"; }
+      else if (w.grams == null) { wVal.textContent = "–"; wNote.textContent = w.error || "Lỗi cân"; }
+      else {
+        wVal.textContent = w.calibrated ? `${w.grams.toFixed(w.grams < 100 ? 1 : 0)} g` : Math.round(w.grams);
+        wNote.textContent = w.calibrated ? "Khối lượng trên khay" : "Chưa hiệu chuẩn (số thô)";
+      }
     } catch (e) { label.textContent = "Mất kết nối server"; }
   }
-  poll(); setInterval(poll, 2000);
+  poll(); setInterval(poll, 1000);
 }
 document.querySelectorAll("#live [data-id]").forEach(setupCard);
 

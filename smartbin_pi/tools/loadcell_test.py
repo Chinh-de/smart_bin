@@ -40,7 +40,6 @@ config/loadcell.json (tự tạo khi gõ t / c).
 import argparse
 import json
 import math
-import random
 import statistics
 import sys
 import time
@@ -49,122 +48,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from smartbin import ROOT, load_json  # noqa: E402
 
-CALIB_PATH = "config/loadcell.json"
-GAIN_PULSES = 1          # 1 xung thêm = kênh A, gain 128 (2 = kênh B gain 32, 3 = kênh A gain 64)
-READY_TIMEOUT_S = 1.0    # HX711 mặc định 10 mẫu/giây, đợi tối đa 1 s cho 1 mẫu
+from smartbin.scale import (CALIB_PATH, SAT_MAX, SAT_MIN, FakeHx711, Hx711,  # noqa: E402
+                            load_calib, sample, to_grams)
+
 SAMPLES_DEFAULT = 5
-SAT_MIN, SAT_MAX = -0x800000, 0x7FFFFF
-DEFAULT_CALIB = {"offset": 0.0, "scale": 1.0, "calibrated": False}
-
-
-class FakeHx711:
-    """Giả lập cho --mock: raw = nền + hệ số * khối lượng + nhiễu."""
-
-    COUNTS_PER_GRAM = 420.0
-
-    def __init__(self):
-        self.grams = 0.0
-        self.base = 84000
-
-    def read_raw(self):
-        time.sleep(0.01)
-        return round(self.base + self.COUNTS_PER_GRAM * self.grams + random.gauss(0, 60))
-
-    def close(self):
-        pass
-
-
-class Hx711:
-    """HX711 qua lgpio, bit-bang."""
-
-    def __init__(self, dt, sck, chip=None):
-        try:
-            import lgpio
-        except ImportError:
-            raise SystemExit("thiếu lgpio: sudo apt install -y python3-lgpio "
-                             "(venv phải tạo bằng --system-site-packages, xem README)")
-        self.lgpio = lgpio
-        self.dt, self.sck = dt, sck
-        if chip is None:
-            chip = 4 if "Raspberry Pi 5" in self._model() else 0
-        try:
-            self.h = lgpio.gpiochip_open(chip)
-            lgpio.gpio_claim_output(self.h, sck, 0)
-            lgpio.gpio_claim_input(self.h, dt)
-        except lgpio.error as e:
-            raise SystemExit(f"không mở được GPIO (chip {chip}, DT=GPIO{dt}, SCK=GPIO{sck}): {e}\n"
-                             f"Chân đang bị chương trình khác giữ? (main.py/calibrate.py/servo_test.py) "
-                             f"Pi 5 thử --chip 4, Pi cũ --chip 0.")
-        lgpio.gpio_write(self.h, sck, 0)  # SCK thấp = HX711 hoạt động (cao > 60 µs = tắt)
-
-    @staticmethod
-    def _model():
-        try:
-            return Path("/proc/device-tree/model").read_bytes().decode(errors="replace")
-        except OSError:
-            return ""
-
-    def _wait_ready(self):
-        """DT xuống thấp = có mẫu mới."""
-        lg, deadline = self.lgpio, time.monotonic() + READY_TIMEOUT_S
-        while lg.gpio_read(self.h, self.dt):
-            if time.monotonic() > deadline:
-                raise TimeoutError("DT luôn ở mức cao: kiểm tra dây VCC/GND/DT/SCK của HX711")
-            time.sleep(0.001)
-
-    def read_raw(self):
-        """1 mẫu 24 bit có dấu."""
-        lg, h, sck, dt = self.lgpio, self.h, self.sck, self.dt
-        self._wait_ready()
-        value = 0
-        for _ in range(24):
-            lg.gpio_write(h, sck, 1)
-            lg.gpio_write(h, sck, 0)
-            value = (value << 1) | lg.gpio_read(h, dt)
-        for _ in range(GAIN_PULSES):  # chọn kênh/gain cho lần đọc kế tiếp
-            lg.gpio_write(h, sck, 1)
-            lg.gpio_write(h, sck, 0)
-        return value - (1 << 24) if value & 0x800000 else value
-
-    def close(self):
-        try:
-            self.lgpio.gpio_write(self.h, self.sck, 1)  # SCK cao > 60 µs: đưa HX711 vào chế độ tiết kiệm điện
-            time.sleep(0.0002)
-            self.lgpio.gpiochip_close(self.h)
-        except Exception:
-            pass
-
-
-def sample(sensor, n=SAMPLES_DEFAULT):
-    """Trung vị n mẫu hợp lệ (bỏ mẫu bão hòa / 0xFFFFFF do xung SCK bị kéo dài)."""
-    vals = []
-    for _ in range(n * 3):
-        raw = sensor.read_raw()
-        if raw in (-1, SAT_MIN, SAT_MAX):  # toàn bit 1, hoặc chạm trần
-            continue
-        vals.append(raw)
-        if len(vals) == n:
-            break
-    if not vals:
-        raise RuntimeError("toàn mẫu bão hòa/-1: HX711 chưa nối load cell, dây E+/E-/A+/A- lỏng hoặc nối nhầm")
-    return statistics.median(vals)
-
-
-def load_calib():
-    try:
-        return {**DEFAULT_CALIB, **load_json(CALIB_PATH)}
-    except FileNotFoundError:
-        return dict(DEFAULT_CALIB)
 
 
 def save_calib(calib):
     with open(ROOT / CALIB_PATH, "w", encoding="utf-8") as f:
         json.dump(calib, f, indent=2)
         f.write("\n")
-
-
-def to_grams(raw, calib):
-    return (raw - calib["offset"]) / calib["scale"]
 
 
 def show_config(calib):
