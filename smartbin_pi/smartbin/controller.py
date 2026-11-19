@@ -34,7 +34,8 @@ class Controller:
         self.csv_path.parent.mkdir(parents=True, exist_ok=True)
         self.model_name = Path(app_cfg["model"]).name
         self.state = "IDLE"
-        self.show_distance = False        # --show-distance: in khoảng cách siêu âm ~0.5 s/lần khi chờ vật
+        # in giá trị siêu âm định kỳ khi chờ vật (0 = tắt); --show-distance in mỗi lần đọc
+        self.distance_log_s = hw.get("distance_log_s", 1.0)
         self.manual = threading.Event()   # phím Enter (main.py --keyboard): chạy như khi siêu âm phát hiện vật
 
     # ---------- tiện ích ----------
@@ -50,6 +51,11 @@ class Controller:
 
     def _clear(self):
         return self.sensor.distance_cm() > self.hw["clear_cm"]
+
+    def _sensor_detail(self, window_s=1.0):
+        """Các lần ping thô gần đây (chỉ cảm biến thật có), để log thấy cả lần đo hỏng."""
+        f = getattr(self.sensor, "detail", None)
+        return f" | {f(window_s)}" if f else ""
 
     def _door_open(self):
         return self.door is not None and self.door.is_open()
@@ -88,6 +94,8 @@ class Controller:
         hold, miss = self.hw["stable_ms"] / 1000, self.hw.get("miss_ms", 400) / 1000
         since, last_near, was_near, last_print = None, 0.0, False, 0.0
         trigger = self.hw["trigger_cm"]
+        log.info("Chờ vật: siêu âm < %s cm, yên %.1fs (đang đo %.1f cm%s)", trigger, hold,
+                 self.sensor.distance_cm(), self._sensor_detail())
         while True:
             if self._door_open():
                 self._wait_door_closed()
@@ -101,20 +109,22 @@ class Controller:
             d = self.sensor.distance_cm()
             near = d < trigger
             now = time.time()
-            if self.show_distance and now - last_print >= 0.5:
-                log.info("Siêu âm: %.1f cm", d)
+            if self.distance_log_s > 0 and now - last_print >= self.distance_log_s:
+                log.info("Siêu âm: %.1f cm (%s, ngưỡng < %s)%s", d, "GẦN" if near else "xa", trigger,
+                         self._sensor_detail(max(self.distance_log_s, 0.5)))
                 last_print = now
             if near:
                 last_near = now
                 if since is None:
                     since = now
-                    log.info("Siêu âm: %.1f cm -> có vật (< %s cm), chờ ổn định %.1fs", d, trigger, hold)
+                    log.info("Siêu âm: %.1f cm -> có vật (< %s cm), chờ ổn định %.1fs%s", d, trigger, hold,
+                             self._sensor_detail())
                 if now - since >= hold:
                     log.info("Siêu âm: vật ổn định ở %.1f cm -> bắt đầu nhận diện", d)
                     return
             elif since is not None:
                 if now - last_near > miss:     # xa liên tục quá miss_ms: vật thật sự đã rời đi
-                    log.info("Siêu âm: %.1f cm -> vật rời đi trước khi ổn định", d)
+                    log.info("Siêu âm: %.1f cm -> vật rời đi trước khi ổn định%s", d, self._sensor_detail())
                     since = None
                 elif was_near:
                     log.debug("Siêu âm: %.1f cm (đọc hụt, bỏ qua)", d)
@@ -155,7 +165,7 @@ class Controller:
         finally:
             self.ind.light(False)
         distance = round(self.sensor.distance_cm(), 1)
-        log.info("Khoảng cách lúc chụp: %s cm", distance)
+        log.info("Khoảng cách lúc chụp: %s cm%s", distance, self._sensor_detail())
 
         self._set("CLASSIFY")
         probs, inf_ms = self.clf.predict(frames)
@@ -193,8 +203,9 @@ class Controller:
             self._sleep_ms("check_ms")   # chờ siêu âm có số đo mới sau khi khay về nghỉ
             dist = self.sensor.distance_cm()
             if dist >= self.hw["trigger_cm"]:
+                log.info("Kiểm tra khay: %.1f cm -> trống%s", dist, self._sensor_detail())
                 return "BIN"
-            log.warning("Sau khi lật vẫn còn vật trên khay (%.1f cm)", dist)
+            log.warning("Sau khi lật vẫn còn vật trên khay (%.1f cm%s)", dist, self._sensor_detail())
         return "ERROR"
 
     def _error_until_clear(self):

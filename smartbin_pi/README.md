@@ -136,8 +136,16 @@ Chưa nối siêu âm/servo mà chỉ muốn thử nhận diện bằng webcam t
 server phát lại dạng MJPEG. Pi chỉ mã hoá + gửi khi có người đang xem. Chỉnh trong `config/app.json`, mục `stream`
 (`enabled`, `fps`, `width`, `quality`). Không chạy khi dùng `--no-upload`. Trang chủ chưa có đăng nhập, ai vào được server đều xem được.
 
-Log siêu âm: luôn in khi vật vào/ra ngưỡng, khi vật ổn định, khoảng cách lúc chụp và sau khi lật khay.
-Thêm `--show-distance` để in thêm khoảng cách ~0.5 s/lần lúc chờ vật (tiện chỉnh `trigger_cm`/`clear_cm`).
+Log siêu âm: lúc chờ vật in khoảng cách mỗi `distance_log_s` giây (mặc định 1, đặt 0 để tắt) kèm từng lần ping thô,
+vd `Siêu âm: 31.9 cm (xa, ngưỡng < 12) | 9 lần/1s [32.1 31.8 mất 31.9 ...], hỏng: mất 1`.
+Lần ping hỏng: `mất` = không có tiếng vang (dây TRIG/ECHO, nguồn 5V, cầu chia áp, hoặc vật mềm/nghiêng hút sóng),
+`ngắn` = xung vang quá ngắn không bắt kịp (vật rất sát cảm biến), `bận` = chân ECHO kẹt mức cao.
+Khoảng cách = trung vị các lần đo hợp lệ trong `distance_window_ms` gần nhất; không có lần nào thì coi khay trống và in cảnh báo.
+Thêm `--show-distance` để in mỗi lần đọc (~`poll_ms`).
+
+Khởi động: servo về nghỉ từng cái một, rồi chạy thử 1 lượt xoay + lật vào thùng `uncertain_bin` (Rác thải khác) và về nghỉ,
+để kết thúc bằng đúng đường về nghỉ như lúc chạy thật (chỉ nhảy thẳng về nghỉ thì khay không về đúng chỗ).
+Lỡ trên khay còn vật lúc bật máy thì vật rơi vào thùng này.
 
 Chưa có model trong `models/` thì dùng bộ phân loại ngẫu nhiên (chỉ để thử luồng). Có model thì cần thêm `pip install ai-edge-litert` (hoặc `tensorflow`).
 

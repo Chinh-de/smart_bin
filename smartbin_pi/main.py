@@ -56,7 +56,8 @@ def main():
     ap.add_argument("--keyboard", action="store_true", help="nhấn Enter để kích hoạt nhận diện (test, ngoài siêu âm)")
     ap.add_argument("--bench", action="store_true",
                     help="chỉ test nhận diện: webcam + model thật, KHÔNG cần siêu âm/servo/GPIO; nhấn Enter để chụp")
-    ap.add_argument("--show-distance", action="store_true", help="in khoảng cách siêu âm ~0.5 s/lần khi chờ vật")
+    ap.add_argument("--show-distance", action="store_true",
+                    help="in khoảng cách siêu âm mỗi lần đọc (mặc định ~1 s/lần, hardware.json -> distance_log_s)")
     ap.add_argument("--config", default="config")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -90,8 +91,11 @@ def main():
         hw = {**hw, **{k: min(v, 300) for k, v in hw.items() if k.endswith("_ms")}}   # chạy nhanh hơn khi giả lập
     servos = PanTilt(hw["pins"], hw["servo"], mock=fake_io)
     sc = hw["servo"]
-    log.info("Servo về nghỉ: ngang %s°, dọc %s° (hardware.json -> servo)", sc["pan_rest"], sc["tilt_rest"])
-    servos.startup()        # trước khi mở webcam: lúc khởi động servo không phải chia nguồn với webcam
+    # chu trình khởi động thả vào thùng "không chắc chắn" (rác thải khác): lỡ trên khay còn vật thì vào đó
+    warm = decider.bins[decider.uncertain_bin]
+    log.info("Servo khởi động: về nghỉ (ngang %s°, dọc %s°), chạy thử 1 lượt vào thùng %s rồi về nghỉ",
+             sc["pan_rest"], sc["tilt_rest"], warm["id"])
+    servos.startup(warm["pan"], warm["tilt_dir"])   # trước khi mở webcam: servo không phải chia nguồn với webcam
     door = None
     if args.mock:
         from smartbin.mock import MockCamera, MockIndicators, MockSensor, attach_mock_servo
@@ -110,7 +114,7 @@ def main():
     else:
         from smartbin.camera import UsbCamera
         from smartbin.hardware import DoorSwitch, Indicators, UltrasonicSensor
-        sensor = UltrasonicSensor(hw["pins"]["trig"], hw["pins"]["echo"])
+        sensor = UltrasonicSensor(hw["pins"]["trig"], hw["pins"]["echo"], hw.get("distance_window_ms"))
         camera = UsbCamera(app["camera_index"], app["camera_width"], app["camera_height"])
         ind = Indicators(hw["pins"])
         if hw["pins"].get("door") is not None:
@@ -128,7 +132,8 @@ def main():
                             sc.get("fps", 5), sc.get("width", 480), sc.get("quality", 70))
 
     ctl = Controller(app, hw, sensor, camera, clf, decider, servos, ind, uploader, ROOT, door)
-    ctl.show_distance = args.show_distance
+    if args.show_distance:
+        ctl.distance_log_s = hw["poll_ms"] / 1000
     if (args.keyboard or args.bench) and not args.mock:   # --mock đã dùng Enter để đặt/lấy vật
         threading.Thread(target=_keyboard_trigger, args=(ctl.manual,), daemon=True, name="keys").start()
     signal.signal(signal.SIGTERM, _on_sigterm)

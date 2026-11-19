@@ -40,6 +40,7 @@ def main():
                     vals.append(sensor.distance_cm())
                     time.sleep(0.1)
                 print(f"khoảng cách: trung vị {sorted(vals)[5]:.1f} cm, min {min(vals):.1f}, max {max(vals):.1f}")
+                print(f"  từng lần ping: {sensor.detail(1.2)}")
                 print(f"  (hiện tại trigger_cm={hw['trigger_cm']}, clear_cm={hw['clear_cm']})")
             elif k == "l":
                 light = not light

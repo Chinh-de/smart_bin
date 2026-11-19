@@ -31,6 +31,8 @@
 
   "trigger_cm": 12,
   "clear_cm": 15,
+  "distance_window_ms": 500,
+  "distance_log_s": 1,
 
   "poll_ms": 100,
   "stable_ms": 500,

@@ -6,7 +6,8 @@ Xung servo do bộ PWM phần cứng của chip tạo (không rung như PWM ph�
 rồi reboot (GPIO12 = kênh 0, GPIO13 = kênh 1). Đổi sang chân khác thì dùng 18/19, xem PIN_TO_PWM_CHANNEL.
 
 Logic điều khiển giống hệt tools/servo_test.py (bản đã test chạy ổn trên Pi):
-- khởi động: đặt thẳng 2 servo về vị trí nghỉ, chờ 1.2 s rồi ngắt xung;
+- khởi động: đặt thẳng từng servo về vị trí nghỉ (lần lượt, chờ 1.2 s mỗi cái), rồi chạy 1 chu trình
+  xoay + lật vào 1 thùng và về nghỉ bằng đường quay mượt như lúc chạy thật, rồi ngắt xung;
 - thả rác: xoay ngang -> chờ settle_s -> lật dọc -> chờ hold_s -> về nghỉ;
 - về nghỉ: dọc về ngang trước, rồi mới xoay ngang về giữa, ngắt xung (không cho Ctrl+C cắt ngang);
 - quay mượt từng servo một (smootherstep), đứng yên thì ngắt xung."""
@@ -234,12 +235,21 @@ class PanTilt:
     def at_rest(self):
         return self.pos.get("tilt") == self.cfg["tilt_rest"]
 
-    def startup(self):
-        """Nhảy thẳng về vị trí nghỉ (chưa biết servo đang ở đâu), chờ tới nơi rồi ngắt xung."""
+    def startup(self, pan=None, tilt_dir=None):
+        """Đưa servo về vị trí nghỉ lúc mới bật (chưa biết servo đang ở đâu).
+
+        Chỉ nhảy thẳng (snap) về nghỉ thì trên máy thật khay KHÔNG về đúng chỗ, còn sau một chu trình
+        thả rác (quay mượt tới thùng rồi home()) thì về đúng. Nên: snap từng servo một (không để 2 servo
+        cùng kéo dòng lớn một lúc), rồi chạy 1 chu trình giống hệt lúc thả rác vào thùng (pan, tilt_dir)
+        để kết thúc bằng đúng đường home() đã chạy ổn. pan=None: chỉ snap như cũ."""
         self.snap("tilt", self.cfg["tilt_rest"])
+        time.sleep(STARTUP_WAIT_S)
         self.snap("pan", self.cfg["pan_rest"])
         time.sleep(STARTUP_WAIT_S)
-        self.release()
+        if pan is None:
+            self.release()
+            return
+        self.dump(pan, tilt_dir)        # dump() luôn kết thúc bằng home() + ngắt xung
 
     def home(self):
         """Dọc về ngang trước, rồi mới xoay ngang về giữa (tránh quét khay khi đang nghiêng), ngắt xung."""
