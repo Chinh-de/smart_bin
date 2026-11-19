@@ -4,10 +4,10 @@ Thùng rác 4 ngăn (thiết kế: `../smartbin_4thung.html`). Đặt rác lên 
 
 | Thùng | Loại | Lớp | Servo A (ngang) | Servo B (lật) |
 |---|---|---|---|---|
-| 1 | Rác tái chế | plastic, metal, paper, cardboard | 45° | `tilt_rest − tilt_delta` |
-| 2 | Rác thực phẩm | biological | 135° | `tilt_rest − tilt_delta` |
-| 3 | Rác thải khác | trash, clothes, shoes, glass, **không chắc chắn** | 45° | `tilt_rest + tilt_delta` |
-| 4 | Rác nguy hại | battery (chỉ cần ≥ 0.4 là vào thùng 4) | 135° | `tilt_rest + tilt_delta` |
+| 1 | Giấy | paper | 45° | `tilt_rest − tilt_delta` |
+| 2 | Nhựa | plastic | 135° | `tilt_rest − tilt_delta` |
+| 3 | Rác thải | trash | 45° | `tilt_rest + tilt_delta` |
+| 4 | Khác | các lớp còn lại, **không chắc chắn** | 135° | `tilt_rest + tilt_delta` |
 
 Đặc tả: [../docs/dac_ta_ung_dung.md](../docs/dac_ta_ung_dung.md)
 
@@ -155,7 +155,7 @@ Cách kích hoạt nhận diện (`trigger_mode` trong `config/hardware.json`):
 - `"object"`: cách cũ, rác nằm yên < `trigger_cm` liên tục `stable_ms` thì nhận diện (rác phải đủ to để siêu âm thấy).
 Thêm `--show-distance` để in mỗi lần đọc (~`poll_ms`).
 
-Khởi động: servo về nghỉ từng cái một, rồi chạy thử 1 lượt xoay + lật vào thùng 1 (Rác tái chế) và về nghỉ,
+Khởi động: servo về nghỉ từng cái một, rồi chạy thử 1 lượt xoay + lật vào thùng 1 (Giấy) và về nghỉ,
 để kết thúc bằng đúng đường về nghỉ như lúc chạy thật (chỉ nhảy thẳng về nghỉ thì khay không về đúng chỗ).
 Lỡ trên khay còn vật lúc bật máy thì vật rơi vào thùng này.
 
@@ -176,5 +176,5 @@ Chưa có model trong `models/` thì dùng bộ phân loại ngẫu nhiên (ch�
 Chỉ sửa `config/bins.json`, không cần train lại:
 - `classes` của từng thùng: lớp nào vào thùng nào (mỗi lớp chỉ ở 1 thùng). Lớp không thuộc thùng nào tính vào `uncertain_bin`.
 - `priority`: lớp nguy hiểm vượt `threshold` là vào thẳng `bin`, kiểm tra trước mọi thứ khác (mặc định pin ≥ 0.4 → thùng 4).
-- `confident_threshold`: tổng xác suất của thùng thắng thấp hơn ngưỡng này thì đưa vào `uncertain_bin` (thùng 3).
+- `confident_threshold`: tổng xác suất của thùng thắng thấp hơn ngưỡng này thì đưa vào `uncertain_bin` (thùng 4).
 - `pan` / `tilt_dir`: vị trí thùng (góc servo A, chiều lật servo B), thử bằng `tools/servo_test.py`.

@@ -1,13 +1,12 @@
 {
   "bins": [
-    {"id": 1, "name": "Rác tái chế",   "pan": 45,  "tilt_dir": -1, "classes": ["plastic", "metal", "paper", "cardboard"]},
-    {"id": 2, "name": "Rác thực phẩm", "pan": 135, "tilt_dir": -1, "classes": ["biological"]},
-    {"id": 3, "name": "Rác thải khác", "pan": 45,  "tilt_dir": 1,  "classes": ["trash", "clothes", "shoes", "glass"]},
-    {"id": 4, "name": "Rác nguy hại",  "pan": 135, "tilt_dir": 1,  "classes": ["battery"]}
+    {"id": 1, "name": "Giấy",       "pan": 45,  "tilt_dir": -1, "classes": ["paper"]},
+    {"id": 2, "name": "Nhựa",       "pan": 135, "tilt_dir": -1, "classes": ["plastic"]},
+    {"id": 3, "name": "Rác thải",   "pan": 45,  "tilt_dir": 1,  "classes": ["trash"]},
+    {"id": 4, "name": "Khác",       "pan": 135, "tilt_dir": 1,
+     "classes": ["battery", "biological", "cardboard", "clothes", "glass", "metal", "shoes"]}
   ],
-  "priority": [
-    {"class": "battery", "threshold": 0.4, "bin": 4}
-  ],
+  "priority": [],
   "confident_threshold": 0.6,
-  "uncertain_bin": 3
+  "uncertain_bin": 4
 }
