@@ -151,7 +151,7 @@ Cách kích hoạt nhận diện (`trigger_mode` trong `config/hardware.json`):
 - `"object"`: cách cũ, rác nằm yên < `trigger_cm` liên tục `stable_ms` thì nhận diện (rác phải đủ to để siêu âm thấy).
 Thêm `--show-distance` để in mỗi lần đọc (~`poll_ms`).
 
-Khởi động: servo về nghỉ từng cái một, rồi chạy thử 1 lượt xoay + lật vào thùng `uncertain_bin` (Rác thải khác) và về nghỉ,
+Khởi động: servo về nghỉ từng cái một, rồi chạy thử 1 lượt xoay + lật vào thùng 1 (Rác tái chế) và về nghỉ,
 để kết thúc bằng đúng đường về nghỉ như lúc chạy thật (chỉ nhảy thẳng về nghỉ thì khay không về đúng chỗ).
 Lỡ trên khay còn vật lúc bật máy thì vật rơi vào thùng này.
 

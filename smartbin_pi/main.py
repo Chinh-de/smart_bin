@@ -91,8 +91,8 @@ def main():
         hw = {**hw, **{k: min(v, 300) for k, v in hw.items() if k.endswith("_ms")}}   # chạy nhanh hơn khi giả lập
     servos = PanTilt(hw["pins"], hw["servo"], mock=fake_io)
     sc = hw["servo"]
-    # chu trình khởi động thả vào thùng "không chắc chắn" (rác thải khác): lỡ trên khay còn vật thì vào đó
-    warm = decider.bins[decider.uncertain_bin]
+    # chu trình khởi động thả vào thùng 1 (lỡ trên khay còn vật thì vào đó)
+    warm = decider.bins[1]
     log.info("Servo khởi động: về nghỉ (ngang %s°, dọc %s°), chạy thử 1 lượt vào thùng %s rồi về nghỉ",
              sc["pan_rest"], sc["tilt_rest"], warm["id"])
     servos.startup(warm["pan"], warm["tilt_dir"])   # trước khi mở webcam: servo không phải chia nguồn với webcam
