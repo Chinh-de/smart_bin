@@ -114,7 +114,8 @@ def main():
     else:
         from smartbin.camera import UsbCamera
         from smartbin.hardware import DoorSwitch, Indicators, UltrasonicSensor
-        sensor = UltrasonicSensor(hw["pins"]["trig"], hw["pins"]["echo"], hw.get("distance_window_ms"))
+        sensor = UltrasonicSensor(hw["pins"]["trig"], hw["pins"]["echo"], hw.get("distance_window_ms"),
+                                  hw.get("lost_as_object", False))
         camera = UsbCamera(app["camera_index"], app["camera_width"], app["camera_height"])
         ind = Indicators(hw["pins"])
         if hw["pins"].get("door") is not None:

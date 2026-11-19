@@ -29,9 +29,12 @@
     "hold_s": 0.8
   },
 
+  "trigger_mode": "hand",
   "trigger_cm": 12,
   "clear_cm": 15,
+  "near_hold_ms": 3000,
   "distance_window_ms": 500,
+  "lost_as_object": false,
   "distance_log_s": 1,
 
   "poll_ms": 100,

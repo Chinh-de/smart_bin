@@ -141,6 +141,14 @@ vd `Siêu âm: 31.9 cm (xa, ngưỡng < 12) | 9 lần/1s [32.1 31.8 mất 31.9 .
 Lần ping hỏng: `mất` = không có tiếng vang (dây TRIG/ECHO, nguồn 5V, cầu chia áp, hoặc vật mềm/nghiêng hút sóng),
 `ngắn` = xung vang quá ngắn không bắt kịp (vật rất sát cảm biến), `bận` = chân ECHO kẹt mức cao.
 Khoảng cách = trung vị các lần đo hợp lệ trong `distance_window_ms` gần nhất; không có lần nào thì coi khay trống và in cảnh báo.
+`lost_as_object` (mặc định `false`): `true` thì trong cửa sổ đo, số lần `mất`/`ngắn` nhiều hơn số lần đo được -> coi là có vật
+(chỉ dùng cho vật mềm/nghiêng hút sóng; chỉ áp dụng khi cảm biến đã từng đo được số hợp lệ).
+
+Cách kích hoạt nhận diện (`trigger_mode` trong `config/hardware.json`):
+- `"hand"` (mặc định): rác nhỏ, siêu âm không thấy rác mà chỉ thấy **tay** lúc đặt vào. Thấy tay (< `trigger_cm`) -> chờ rút tay ra
+  (> `clear_cm` liên tục `stable_ms`) -> chờ `settle_ms` -> chụp. Rác đủ to để siêu âm thấy (sau `near_hold_ms` vẫn chưa > `clear_cm`)
+  thì cũng nhận diện, không phải chờ rút tay. Đặt `near_hold_ms` = 0 để tắt nhánh này.
+- `"object"`: cách cũ, rác nằm yên < `trigger_cm` liên tục `stable_ms` thì nhận diện (rác phải đủ to để siêu âm thấy).
 Thêm `--show-distance` để in mỗi lần đọc (~`poll_ms`).
 
 Khởi động: servo về nghỉ từng cái một, rồi chạy thử 1 lượt xoay + lật vào thùng `uncertain_bin` (Rác thải khác) và về nghỉ,

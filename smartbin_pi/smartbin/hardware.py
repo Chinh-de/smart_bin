@@ -38,11 +38,14 @@ class _PingSensor(DistanceSensor):
         self.pings = deque(maxlen=200)   # (time.monotonic(), cm hoặc None, trạng thái)
         self.pings_lock = threading.Lock()
         self.read_errors = 0
+        self.ever_ok = False             # đã từng đo được số hợp lệ -> dây/nguồn cảm biến đang chạy
         super().__init__(*args, **kwargs)
 
     def _record(self, cm, status):
         with self.pings_lock:
             self.pings.append((time.monotonic(), cm, status))
+        if cm is not None:
+            self.ever_ok = True
 
     def _read(self):
         try:
@@ -82,18 +85,24 @@ class _PingSensor(DistanceSensor):
 
 class UltrasonicSensor:
     NO_DATA_CM = 999.0      # không có lần đo hợp lệ nào gần đây: coi như khay trống (và in cảnh báo)
+    LOST_CM = 0.0           # mất vang (lost_as_object): coi như vật nằm sát cảm biến -> < trigger_cm = CÓ VẬT
+    LOST = (NO_ECHO, SHORT) # lần ping hỏng được tính là "mất vang"
     WINDOW_S = 0.5          # chỉ lấy trung vị các lần đo trong 0.5 s gần nhất (~5-8 lần, gpiozero đo ~60 ms/lần)
     WARN_EVERY_S = 10.0
 
-    def __init__(self, trig, echo, window_ms=None):
+    def __init__(self, trig, echo, window_ms=None, lost_as_object=False):
+        """lost_as_object=True: trong cửa sổ đo, số lần mất vang (mất/ngắn) nhiều hơn số lần đo được
+        -> trả LOST_CM (= có vật). Chỉ áp dụng khi cảm biến ĐÃ TỪNG đo được số hợp lệ từ lúc chạy
+        (chứng tỏ dây/nguồn ổn), để cảm biến hỏng/lỏng dây ngay từ đầu không bị hiểu thành có vật."""
         self.trig, self.echo = trig, echo
+        self.lost_as_object = lost_as_object
         if window_ms:
             self.WINDOW_S = window_ms / 1000
         # partial=True: không chặn chờ hàng đợi đầy (không đọc .distance của gpiozero nữa, xem _PingSensor)
         self.s = _PingSensor(echo=echo, trigger=trig, max_distance=2.0, queue_len=1, partial=True)
         self._last_warn = 0.0
-        log.info("Siêu âm HC-SR04: TRIG GPIO%s, ECHO GPIO%s, pin factory %s", trig, echo,
-                 type(self.s.pin_factory).__name__)
+        log.info("Siêu âm HC-SR04: TRIG GPIO%s, ECHO GPIO%s, pin factory %s, mất vang = %s", trig, echo,
+                 type(self.s.pin_factory).__name__, "CÓ VẬT" if lost_as_object else "khay trống")
 
     def recent(self, window_s=None):
         """Các lần ping trong window_s giây gần nhất: [(tuổi_s, cm|None, trạng thái)], cũ trước."""
@@ -103,8 +112,18 @@ class UltrasonicSensor:
             pings = list(self.s.pings)
         return [(now - t, cm, st) for t, cm, st in pings if now - t <= w]
 
+    def _is_lost(self, pings):
+        """Mất vang chiếm đa số trong cửa sổ đo (và cảm biến đã từng đo được -> không phải lỗi dây từ đầu)."""
+        if not (self.lost_as_object and self.s.ever_ok):
+            return False
+        lost = sum(st in self.LOST for _, _, st in pings)
+        ok = sum(cm is not None for _, cm, _ in pings)
+        return lost > ok
+
     def distance_cm(self):
         pings = self.recent()
+        if self._is_lost(pings):
+            return self.LOST_CM
         vals = [cm for _, cm, _ in pings if cm is not None]
         if vals:
             return statistics.median(vals)
@@ -130,6 +149,8 @@ class UltrasonicSensor:
             if cm is None:
                 bad[STATUS_MARK.get(st, st)] = bad.get(STATUS_MARK.get(st, st), 0) + 1
         tail = f", hỏng: {', '.join(f'{k} {v}' for k, v in bad.items())}" if bad else ""
+        if self._is_lost(self.recent()):
+            tail += " -> MẤT VANG, coi là CÓ VẬT"
         return f"{len(pings)} lần/{window_s:g}s [{self.describe(pings)}]{tail}"
 
     def close(self):

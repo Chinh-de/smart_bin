@@ -87,7 +87,74 @@ class Controller:
         self._set(prev)
 
     def _wait_trigger(self):
-        """Chờ vật nằm yên stable_ms trước siêu âm, hoặc có phím bấm. Cửa mở thì không nhận.
+        """Chờ có rác trên khay (theo trigger_mode), hoặc có phím bấm. Cửa mở thì không nhận."""
+        if self.hw.get("trigger_mode", "hand") == "hand":
+            return self._wait_hand()
+        return self._wait_object()
+
+    def _poll_common(self, state):
+        """Phần chung mỗi vòng chờ: cửa mở / phím bấm. Trả True nếu phím bấm (bắt đầu nhận diện ngay)."""
+        if self._door_open():
+            self._wait_door_closed()
+            self.manual.clear()
+            state.clear()
+            return False
+        if self.manual.is_set():
+            self.manual.clear()
+            log.info("Kích hoạt bằng phím bấm")
+            return True
+        return False
+
+    def _log_distance(self, d, label, state):
+        now = time.time()
+        if self.distance_log_s > 0 and now - state.get("last_print", 0.0) >= self.distance_log_s:
+            log.info("Siêu âm: %.1f cm (%s)%s", d, label, self._sensor_detail(max(self.distance_log_s, 0.5)))
+            state["last_print"] = now
+
+    def _wait_hand(self):
+        """trigger_mode "hand": vật nhỏ, siêu âm không thấy vật mà chỉ thấy TAY lúc đặt vật vào.
+
+            chờ tay ──(< trigger_cm)──> tay trong khay ──(> clear_cm liên tục stable_ms)──> NHẬN DIỆN
+                                              └──(sau near_hold_ms vẫn chưa > clear_cm: vật đủ to, siêu âm thấy)──┘
+        Khi tay ở trong: các lần đọc xa ngắn hơn stable_ms (tay di chuyển, đọc hụt) không tính là đã rút tay.
+        Đọc trong khoảng trigger_cm..clear_cm: chưa chắc tay đã ra, chưa tính."""
+        trig, clear = self.hw["trigger_cm"], self.hw["clear_cm"]
+        release = self.hw["stable_ms"] / 1000
+        near_hold = self.hw.get("near_hold_ms", 3000) / 1000
+        log.info("Chờ tay đặt vật: siêu âm < %s cm, rồi rút tay ra (> %s cm liên tục %.1fs) -> nhận diện "
+                 "(đang đo %.1f cm%s)", trig, clear, release, self.sensor.distance_cm(), self._sensor_detail())
+        st = {}       # hand_since: lúc thấy tay; far_since: lúc bắt đầu đọc xa (tay rút ra)
+        while True:
+            if self._poll_common(st):
+                return
+            d = self.sensor.distance_cm()
+            near, far = d < trig, d > clear
+            now = time.time()
+            if "hand_since" not in st:
+                self._log_distance(d, "chờ tay" + (", GẦN" if near else ""), st)
+                if near:
+                    st["hand_since"] = now
+                    st.pop("far_since", None)
+                    log.info("Siêu âm: %.1f cm -> có tay/vật trong khay, chờ rút tay ra%s", d, self._sensor_detail())
+            else:
+                self._log_distance(d, "tay trong khay" if not far else "tay đã ra?", st)
+                if far:
+                    st.setdefault("far_since", now)
+                    if now - st["far_since"] >= release:
+                        log.info("Siêu âm: %.1f cm liên tục %.1fs -> đã rút tay (tay ở trong %.1fs) -> bắt đầu "
+                                 "nhận diện%s", d, release, st["far_since"] - st["hand_since"], self._sensor_detail())
+                        return
+                else:
+                    if "far_since" in st:
+                        log.debug("Siêu âm: %.1f cm -> tay vẫn còn (đọc xa %.2fs, chưa đủ)", d, now - st.pop("far_since"))
+                    if near_hold > 0 and now - st["hand_since"] >= near_hold:
+                        log.info("Siêu âm: vẫn %.1f cm (chưa > %s cm) sau %.1fs -> có vật nằm trên khay -> bắt đầu "
+                                 "nhận diện%s", d, clear, near_hold, self._sensor_detail())
+                        return
+            self._sleep_ms("poll_ms")
+
+    def _wait_object(self):
+        """trigger_mode "object": chờ vật nằm yên stable_ms trước siêu âm (vật đủ to để siêu âm thấy).
 
         HC-SR04 hay mất tiếng vang (vật nhỏ, mặt nghiêng, vật mềm) và đọc vọt lên vài chục cm dù vật vẫn
         nằm đó: các lần đọc xa ngắn hơn miss_ms được bỏ qua, không làm đếm lại thời gian ổn định."""
