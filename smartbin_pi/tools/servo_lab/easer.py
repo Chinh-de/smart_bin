@@ -23,8 +23,14 @@ Lệnh:
 import math
 import sys
 import time
+from pathlib import Path
 
-from gpiozero import AngularServo
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from smartbin.servo import SysfsPwm  # noqa: E402
+
+# GPIO12/13 đã bị overlay pwm-2chan giữ (PWM phần cứng) nên gpiozero không claim được
+# ("xGpioHandleRequest: Invalid argument"). Dùng /sys/class/pwm giống smartbin/servo.py.
+MIN_US, MAX_US = 500, 2500
 
 FRAME = 0.02            # frameTime 20 ms
 REST = 90.0
@@ -117,9 +123,31 @@ def run(easers):
         e.servo.detach()
 
 
+class HwServo:
+    """Giống AngularServo (0..180°, 500..2500 µs) nhưng chạy trên kênh PWM phần cứng."""
+
+    def __init__(self, pwm, name):
+        self.pwm, self.name = pwm, name
+
+    @property
+    def angle(self):
+        return None
+
+    @angle.setter
+    def angle(self, a):
+        a = min(180.0, max(0.0, a))
+        self.pwm.set_pulse_us(self.name, MIN_US + (MAX_US - MIN_US) * a / 180)
+
+    def detach(self):
+        self.pwm.off(self.name)
+
+    def close(self):
+        self.pwm.off(self.name)
+
+
 pins = [int(a) for a in sys.argv[1:]] or [12]
-servos = [AngularServo(p, min_angle=0, max_angle=180,
-                       min_pulse_width=0.0005, max_pulse_width=0.0025) for p in pins]
+pwm = SysfsPwm({f"s{i}": p for i, p in enumerate(pins)})
+servos = [HwServo(pwm, f"s{i}") for i in range(len(pins))]
 for s in servos:
     s.angle = REST
 time.sleep(0.6)
@@ -193,3 +221,4 @@ finally:
     for s in servos:
         s.detach()
         s.close()
+    pwm.close()
