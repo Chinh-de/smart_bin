@@ -68,7 +68,7 @@ Chép từ output Kaggle vào `models/`: `model_int8.tflite`, `labels.json` (và
 .venv/bin/python tools/calibrate.py
 
 # cơ cấu 2 servo (ngang chọn bên 45°/135° + dọc nghiêng đổ) cho 4 thùng: nhập 1..4 để thử
-.venv/bin/python tools/servo_test.py          # thêm --speed 30 để quay chậm hơn (tốc độ đỉnh, độ/giây), --mock để thử không cần Pi
+.venv/bin/python tools/servo_test.py          # --pan-ms 800 --tilt-ms 600 --easing sine để thử chuyển động khác, --mock để thử không cần Pi
 
 # load cell + HX711: đọc thô, tare, hiệu chuẩn bằng vật biết khối lượng (lưu config/loadcell.json)
 .venv/bin/python tools/loadcell_test.py       # --mock để thử không cần Pi
@@ -76,11 +76,14 @@ Chép từ output Kaggle vào `models/`: `model_int8.tflite`, `labels.json` (và
 
 `loadcell_test.py`: gõ `t` khi cân trống (tare), đặt vật đã biết khối lượng rồi `c <gram>` (vd `c 500`), sau đó `w`/`r` để đọc gram, `n` để xem độ nhiễu. Số đọc âm khi đặt vật thì đảo dây A+ ↔ A−. Màu dây load cell mỗi hãng một kiểu; nếu `t`/`c` báo chênh lệch ≈ 0 thì kiểm tra lại E+/E−/A+/A−.
 
-`servo_test.py` dùng chung cấu hình với `main.py`: mục `servo` trong `config/hardware.json` (`pan_rest`, `tilt_rest`, `tilt_delta`, `tilt_sign` đảo chiều dọc, `speed_dps` tốc độ đỉnh, `update_hz`, `settle_s`, `hold_s`) và `pan`/`tilt_dir` của từng thùng trong `config/bins.json`. Servo dùng PWM phần cứng (xung ổn định, không rung) nên cần bật overlay một lần: thêm dòng sau vào `/boot/firmware/config.txt` rồi `sudo reboot` (GPIO12 = kênh 0, GPIO13 = kênh 1):
+`servo_test.py` dùng chung cấu hình với `main.py`: mục `servo` trong `config/hardware.json` (`pan_rest`, `tilt_rest`, `tilt_delta`, `tilt_sign` đảo chiều dọc, `easing` (`linear`/`quad`/`cubic`/`sine`), `pan_ms`/`tilt_ms` thời gian mỗi lần xoay ngang/lật dọc, `update_hz`, `settle_s`, `hold_s`) và `pan`/`tilt_dir` của từng thùng trong `config/bins.json`. Servo dùng PWM phần cứng (xung ổn định, không rung) nên cần bật overlay một lần: thêm dòng sau vào `/boot/firmware/config.txt` rồi `sudo reboot` (GPIO12 = kênh 0, GPIO13 = kênh 1):
 
 ```
 dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4
 ```
+
+Chuyển động servo theo cơ chế ServoEaser (thử nghiệm ở `tools/servo_lab/easer.py`): mỗi lần quay tới góc trong đúng
+`pan_ms`/`tilt_ms` (không theo tốc độ), góc theo hàm easing kiểu Robert Penner, mặc định `cubic` (easeInOutCubic).
 
 Kiểm tra: `ls /sys/class/pwm/` phải thấy `pwmchip0`. Nếu báo không ghi được `/sys/class/pwm`, chạy `sudo usermod -aG gpio $USER` rồi đăng nhập lại (hoặc chạy bằng `sudo`). Không chạy `servo_test.py` cùng lúc với `main.py`.
 
@@ -103,7 +106,18 @@ Mở web từ điện thoại/laptop cùng WiFi: `http://<ip-của-pi>:5000` (xe
 - **Lịch sử**: lọc theo thùng / kết quả / lớp / ngày, bấm vào xem ảnh lớn và xác suất.
 - **Thống kê**: theo thùng, lớp, giờ, ngày; số lần không chắc chắn, lỗi kẹt rác.
 
-API cho phần mở rộng: `GET /api/events`, `GET /api/stats`.
+- **Log**: log trực tiếp của chương trình trên Pi (lọc theo mức, theo chữ, tạm dừng).
+- **Cấu hình**: chỉnh thông số servo (easing, thời gian, góc nghỉ, biên độ lật, xung), góc từng thùng, ngưỡng siêu âm,
+  ngưỡng phân loại; bấm **Lưu & áp dụng** là Pi áp dụng ngay (không cần khởi động lại) và lưu vào `config/local.json`.
+  File này không commit (có trong `.gitignore`), lúc khởi động được đè lên `hardware.json` / `bins.json`, nên `git pull`
+  trên Pi không bị xung đột; xoá nó để về cấu hình gốc, muốn đưa giá trị đã chỉnh vào git thì chép sang file gốc. Giá trị sai (vd góc lật ra ngoài 0..180) bị từ chối, không đổi gì. Nút **Thả thùng N** / **Về nghỉ** để
+  thử servo, chỉ chạy khi Pi đang chờ vật và khay trống.
+
+Pi đồng bộ log + cấu hình với server mỗi giây (`smartbin/remote.py`, `POST /api/sync/<device_id>`); tắt bằng `--no-remote`
+(hoặc `--no-upload`). Log và cấu hình chờ áp dụng chỉ giữ trong RAM của server. Trang Cấu hình chưa có đăng nhập:
+ai vào được server đều chỉnh được thông số và chạy thử servo.
+
+API cho phần mở rộng: `GET /api/events`, `GET /api/stats`, `GET /api/logs/<device_id>?after=<seq>`, `GET/POST /api/config/<device_id>`.
 
 ## 5. Tự khởi động khi bật nguồn
 
@@ -177,4 +191,4 @@ Chỉ sửa `config/bins.json`, không cần train lại:
 - `classes` của từng thùng: lớp nào vào thùng nào (mỗi lớp chỉ ở 1 thùng). Lớp không thuộc thùng nào tính vào `uncertain_bin`.
 - `priority`: lớp nguy hiểm vượt `threshold` là vào thẳng `bin`, kiểm tra trước mọi thứ khác (mặc định pin ≥ 0.4 → thùng 4).
 - `confident_threshold`: tổng xác suất của thùng thắng thấp hơn ngưỡng này thì đưa vào `uncertain_bin` (thùng 4).
-- `pan` / `tilt_dir`: vị trí thùng (góc servo A, chiều lật servo B), thử bằng `tools/servo_test.py`.
+- `pan` / `tilt_dir`: vị trí thùng (góc servo A, chiều lật servo B), thử bằng `tools/servo_test.py` hoặc trang web **Cấu hình**.

@@ -8,6 +8,7 @@
 import csv
 import json
 import logging
+import queue
 import threading
 import time
 import uuid
@@ -34,11 +35,20 @@ class Controller:
         self.csv_path.parent.mkdir(parents=True, exist_ok=True)
         self.model_name = Path(app_cfg["model"]).name
         self.state = "IDLE"
-        # in giá trị siêu âm định kỳ khi chờ vật (0 = tắt); --show-distance in mỗi lần đọc
-        self.distance_log_s = hw.get("distance_log_s", 1.0)
+        self._distance_log_s = None       # --show-distance ghi đè; không thì đọc hw (web chỉnh được lúc chạy)
         self.manual = threading.Event()   # phím Enter (main.py --keyboard): chạy như khi siêu âm phát hiện vật
+        self.commands = queue.Queue()     # lệnh thử servo từ web (smartbin/remote.py), chạy lúc đang chờ vật
 
     # ---------- tiện ích ----------
+    @property
+    def distance_log_s(self):
+        """In giá trị siêu âm định kỳ khi chờ vật (0 = tắt); --show-distance in mỗi lần đọc."""
+        return self._distance_log_s if self._distance_log_s is not None else self.hw.get("distance_log_s", 1.0)
+
+    @distance_log_s.setter
+    def distance_log_s(self, v):
+        self._distance_log_s = v
+
     def _set(self, state):
         self.state = state
         log.debug("-> %s", state)
@@ -92,12 +102,57 @@ class Controller:
             return self._wait_hand()
         return self._wait_object()
 
+    COMMAND_MAX_AGE_S = 15
+
+    def command(self, cmd):
+        """Nhận lệnh từ web (luồng khác): {"cmd": "bin", "bin": 2} hoặc {"cmd": "home"}."""
+        self.commands.put((time.time(), cmd))
+
+    def _run_commands(self):
+        """Chạy lệnh thử servo đang chờ. Chỉ gọi lúc đang chờ vật (khay trống, servo đứng yên).
+        Trả True nếu có chạy lệnh (vòng chờ nên bắt đầu đếm lại)."""
+        ran = False
+        while True:
+            try:
+                t, cmd = self.commands.get_nowait()
+            except queue.Empty:
+                return ran
+            if time.time() - t > self.COMMAND_MAX_AGE_S:
+                log.warning("Bỏ lệnh từ web quá cũ: %s", cmd)
+                continue
+            if self._door_open():
+                log.warning("Cửa hông đang mở, bỏ lệnh từ web: %s", cmd)
+                continue
+            prev = self.state
+            self._set("TEST")
+            try:
+                if cmd.get("cmd") == "bin" and cmd.get("bin") in self.decider.bins:
+                    b = self.decider.bins[cmd["bin"]]
+                    log.info("Web: thử thả vào thùng %s %s (ngang %s°, lật %+d)", b["id"], b["name"], b["pan"],
+                             b["tilt_dir"])
+                    self.servos.dump(b["pan"], b["tilt_dir"])
+                elif cmd.get("cmd") == "home":
+                    log.info("Web: về vị trí nghỉ")
+                    self.servos.home()
+                else:
+                    log.warning("Lệnh từ web không hợp lệ: %s", cmd)
+                    continue
+                log.info("Web: xong lệnh")
+                ran = True
+            except Exception:
+                log.exception("Lỗi khi chạy lệnh từ web %s", cmd)
+            finally:
+                self._set(prev)
+
     def _poll_common(self, state):
         """Phần chung mỗi vòng chờ: cửa mở / phím bấm. Trả True nếu phím bấm (bắt đầu nhận diện ngay)."""
         if self._door_open():
             self._wait_door_closed()
             self.manual.clear()
             state.clear()
+            return False
+        if "hand_since" not in state and self._run_commands():   # tay đang trong khay thì không chạy servo
+            state.clear()          # số đo lúc servo chạy thử không tính, đếm lại từ đầu
             return False
         if self.manual.is_set():
             self.manual.clear()
@@ -167,6 +222,9 @@ class Controller:
             if self._door_open():
                 self._wait_door_closed()
                 self.manual.clear()
+                since, was_near = None, False
+                continue
+            if since is None and self._run_commands():         # có vật trên khay thì không chạy servo
                 since, was_near = None, False
                 continue
             if self.manual.is_set():

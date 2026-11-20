@@ -44,6 +44,8 @@
   <a href="/" class="{{ 'on' if request.path == '/' }}">Tổng quan</a>
   <a href="/events" class="{{ 'on' if request.path.startswith('/events') }}">Lịch sử</a>
   <a href="/stats" class="{{ 'on' if request.path == '/stats' }}">Thống kê</a>
+  <a href="/logs" class="{{ 'on' if request.path == '/logs' }}">Log</a>
+  <a href="/config" class="{{ 'on' if request.path == '/config' }}">Cấu hình</a>
 </header>
 <main>{% block body %}{% endblock %}</main>
 </body>

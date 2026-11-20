@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Cấu hình thiết bị{% endblock %}
+{% block head %}
+<style>
+  .bar-top { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .bar-top select, button { padding:6px 10px; font-size:14px; }
+  .groups { display:grid; gap:12px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .groups h3 { font-size:14px; margin:0 0 8px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:6px 0; font-size:14px; }
+  .row input, .row select { width:110px; padding:5px 6px; font-size:14px; }
+  .row.changed input, .row.changed select { outline:2px solid #f59e0b; }
+  .actions { position:sticky; bottom:0; background:var(--bg); padding:10px 0; display:flex; gap:8px;
+             flex-wrap:wrap; align-items:center; border-top:1px solid var(--line); margin-top:12px; }
+  .primary { background:#2563eb; color:#fff; border:0; border-radius:6px; }
+  .primary:disabled { background:#93c5fd; }
+  #msg.ok { color:#16a34a; } #msg.err { color:#dc2626; }
+</style>
+{% endblock %}
+{% block body %}
+{% if not device %}
+<p class="muted">Chưa có thiết bị nào kết nối. Chạy <code>main.py</code> trên Pi (không dùng <code>--no-upload</code>).</p>
+{% else %}
+<div class="bar-top">
+  <select onchange="location.search = '?device=' + encodeURIComponent(this.value)">
+    {% for i in ids %}<option {{ 'selected' if i == device }}>{{ i }}</option>{% endfor %}
+  </select>
+  <span class="muted"><span class="dot off-dot" id="dot"></span><span id="state">Đang nối…</span></span>
+  <a href="/logs?device={{ device | urlencode }}" style="margin-left:auto;">Xem log →</a>
+</div>
+
+<h2>Thử servo</h2>
+<div class="card" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+  <span id="testbtns"></span>
+  <button data-cmd="home">Về nghỉ</button>
+  <span class="muted">Chạy khi thiết bị đang chờ vật và khay trống. Lưu cấu hình trước rồi mới thử.</span>
+</div>
+
+<h2>Thông số</h2>
+<p class="muted" id="empty">Đang tải…</p>
+<form id="form" class="groups"></form>
+<div class="actions">
+  <button class="primary" id="save" disabled>Lưu &amp; áp dụng</button>
+  <button id="reset" type="button">Bỏ thay đổi</button>
+  <span id="msg" class="muted"></span>
+</div>
+<p class="muted">Thông số áp dụng ngay trên thiết bị (không cần khởi động lại) và được lưu vào
+  <code>config/local.json</code> trên Pi (đè lên <code>hardware.json</code>, <code>bins.json</code>; xoá file đó để về cấu hình gốc).</p>
+
+<script>
+const dev = {{ device | tojson }}, api = `/api/config/${encodeURIComponent(dev)}`;
+const form = document.getElementById("form"), save = document.getElementById("save"), msg = document.getElementById("msg");
+let fields = null, values = {}, waitId = null, lastResultTs = 0;
+
+function setMsg(text, cls) { msg.textContent = text; msg.className = cls || "muted"; }
+const same = (a, b) => String(a) === String(b);
+
+function build() {
+  form.innerHTML = "";
+  const groups = {};
+  for (const f of fields) {
+    let card = groups[f.group];
+    if (!card) {
+      card = groups[f.group] = document.createElement("div");
+      card.className = "card";
+      const h = document.createElement("h3"); h.textContent = f.group; card.appendChild(h);
+      form.appendChild(card);
+    }
+    const row = document.createElement("label"); row.className = "row";
+    const span = document.createElement("span"); span.textContent = f.label; span.title = f.key;
+    let inp;
+    if (f.kind === "select") {
+      inp = document.createElement("select");
+      for (const o of f.options) { const op = document.createElement("option"); op.value = op.textContent = o; inp.appendChild(op); }
+    } else {
+      inp = document.createElement("input"); inp.type = "number";
+      inp.min = f.min; inp.max = f.max; inp.step = f.step;
+    }
+    inp.name = f.key; inp.oninput = inp.onchange = mark;
+    row.append(span, inp); card.appendChild(row);
+  }
+  const tb = document.getElementById("testbtns"); tb.innerHTML = "";
+  for (const f of fields) {
+    const m = f.key.match(/^bin\.(\d+)\.pan$/);
+    if (!m) continue;
+    const b = document.createElement("button"); b.type = "button";
+    b.textContent = "Thả thùng " + m[1]; b.onclick = () => command({cmd: "bin", bin: +m[1]});
+    tb.append(b, " ");
+  }
+  fill();
+}
+function fill() {
+  for (const f of fields) { const el = form.elements[f.key]; if (el) el.value = values[f.key] ?? ""; }
+  mark();
+}
+function changed() {
+  const out = {};
+  for (const f of fields) {
+    const el = form.elements[f.key];
+    if (el && el.value !== "" && !same(el.value, values[f.key])) out[f.key] = el.value;
+  }
+  return out;
+}
+function mark() {
+  const c = changed();
+  for (const el of form.elements) el.closest(".row").classList.toggle("changed", el.name in c);
+  save.disabled = !Object.keys(c).length || !!waitId;
+}
+
+async function load(first) {
+  try {
+    const r = await (await fetch(api, {cache: "no-store"})).json();
+    document.getElementById("dot").className = "dot " + (r.online ? "on-dot" : "off-dot");
+    document.getElementById("state").textContent = r.online ? "Thiết bị đang kết nối" : "Thiết bị offline";
+    if (!r.fields) { document.getElementById("empty").textContent = "Thiết bị chưa gửi thông số (đang chạy main.py chưa?)"; return; }
+    document.getElementById("empty").style.display = "none";
+    const dirty = fields && Object.keys(changed()).length;
+    const fresh = JSON.stringify(r.fields) !== JSON.stringify(fields);
+    values = r.values || {};
+    if (fresh) { fields = r.fields; build(); }
+    else if (!dirty) fill();          // đang sửa dở thì không ghi đè ô nhập
+    else mark();
+    const res = r.result;
+    if (waitId && res && res.id === waitId) {
+      waitId = null;
+      if (res.ok) { setMsg(res.changes && res.changes.length ? "Đã áp dụng: " + res.changes.join("; ") : "Không có gì thay đổi", "ok"); fill(); }
+      else setMsg("Thiết bị từ chối: " + res.error, "err");
+      mark();
+    } else if (waitId && !r.pending) {
+      waitId = null; setMsg("Server mất yêu cầu (khởi động lại?), hãy lưu lại", "err"); mark();
+    } else if (waitId) {
+      setMsg(r.online ? "Đang chờ thiết bị áp dụng…" : "Thiết bị offline, sẽ áp dụng khi kết nối lại");
+    }
+  } catch (e) {
+    document.getElementById("state").textContent = "Mất kết nối server";
+  }
+}
+
+save.onclick = async e => {
+  e.preventDefault();
+  const c = changed();
+  if (!Object.keys(c).length) return;
+  try {
+    const r = await fetch(api, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({values: c})});
+    const j = await r.json();
+    if (!r.ok) return setMsg(j.error || "Lỗi", "err");
+    waitId = j.id; setMsg("Đã gửi, đang chờ thiết bị áp dụng…"); mark();
+  } catch (err) { setMsg("Không gửi được: " + err, "err"); }
+};
+document.getElementById("reset").onclick = () => { fill(); setMsg(""); };
+form.onsubmit = e => { e.preventDefault(); save.click(); };
+
+async function command(c) {
+  try {
+    const r = await fetch(`/api/command/${encodeURIComponent(dev)}`, {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify(c)});
+    const j = await r.json();
+    setMsg(r.ok ? "Đã gửi lệnh thử servo, xem kết quả ở trang Log" : (j.error || "Lỗi"), r.ok ? "ok" : "err");
+  } catch (err) { setMsg("Không gửi được: " + err, "err"); }
+}
+document.querySelector('[data-cmd="home"]').onclick = () => command({cmd: "home"});
+
+load(true); setInterval(load, 1000);
+</script>
+{% endif %}
+{% endblock %}

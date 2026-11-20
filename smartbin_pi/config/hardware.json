@@ -23,7 +23,9 @@
     "tilt_delta": 42,
     "tilt_sign": 1,
 
-    "speed_dps": 50,
+    "easing": "cubic",
+    "pan_ms": 500,
+    "tilt_ms": 400,
     "update_hz": 50,
     "settle_s": 0.4,
     "hold_s": 0.8

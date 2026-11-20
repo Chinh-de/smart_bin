@@ -12,6 +12,7 @@ smartbin_pi/queue/
 smartbin_pi/calib.jpg
 smartbin_pi/server/smartbin.db
 smartbin_pi/server/uploads/
+smartbin_pi/config/local.json
 
 # model: bản TFLite trong Model_training/models/ được commit (nhẹ); bản .keras thì không
 *.keras

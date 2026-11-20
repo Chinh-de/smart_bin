@@ -10,7 +10,9 @@ Logic điều khiển giống hệt tools/servo_test.py (bản đã test chạy 
   xoay + lật vào 1 thùng và về nghỉ bằng đường quay mượt như lúc chạy thật, rồi ngắt xung;
 - thả rác: xoay ngang -> chờ settle_s -> lật dọc -> chờ hold_s -> về nghỉ;
 - về nghỉ: dọc về ngang trước, rồi mới xoay ngang về giữa, ngắt xung (không cho Ctrl+C cắt ngang);
-- quay mượt từng servo một (smootherstep), đứng yên thì ngắt xung."""
+- quay mượt từng servo một theo cơ chế ServoEaser (todbot, xem tools/servo_lab/easer.py): mỗi lần quay
+  tới góc trong ĐÚNG pan_ms / tilt_ms (không theo tốc độ), góc = easing(t, đầu, quãng, thời gian) kiểu
+  Robert Penner, cập nhật mỗi 1/update_hz giây; đứng yên thì ngắt xung."""
 import math
 import signal
 import threading
@@ -19,7 +21,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 MIN_ANGLE, MAX_ANGLE = 0, 180
-SMOOTHERSTEP_PEAK = 1.875  # đạo hàm lớn nhất của 6t^5-15t^4+10t^3 (tốc độ đỉnh / tốc độ trung bình)
 STARTUP_WAIT_S = 1.2       # chưa biết servo đang ở đâu: chờ đủ thời gian quay tối đa rồi mới ngắt xung
 
 PWM_ROOT = Path("/sys/class/pwm")
@@ -28,7 +29,92 @@ PIN_TO_PWM_CHANNEL = {12: 0, 13: 1, 18: 0, 19: 1}  # chân có PWM phần cứng
 OVERLAY_HINT = ("thêm vào /boot/firmware/config.txt rồi reboot:\n"
                 "    dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4")
 SERVO_KEYS = ("min_pulse_ms", "max_pulse_ms", "pan_rest", "tilt_rest", "tilt_delta", "tilt_sign",
-              "speed_dps", "update_hz", "settle_s", "hold_s")
+              "pan_ms", "tilt_ms", "update_hz", "settle_s", "hold_s")
+MOVE_MS_RANGE = (50, 10000)
+
+
+# ---- easing kiểu Robert Penner: f(t, b, c, d), t: thời gian đã qua, b: điểm đầu, c: quãng đổi, d: tổng ----
+def ease_linear(t, b, c, d):
+    return c * t / d + b
+
+
+def ease_in_out_quad(t, b, c, d):
+    t /= d / 2
+    if t < 1:
+        return c / 2 * t * t + b
+    t -= 1
+    return -c / 2 * (t * (t - 2) - 1) + b
+
+
+def ease_in_out_cubic(t, b, c, d):          # mặc định của ServoEaser
+    t /= d / 2
+    if t < 1:
+        return c / 2 * t * t * t + b
+    t -= 2
+    return c / 2 * (t * t * t + 2) + b
+
+
+def ease_in_out_sine(t, b, c, d):
+    return -c / 2 * (math.cos(math.pi * t / d) - 1) + b
+
+
+EASINGS = {"linear": ease_linear, "quad": ease_in_out_quad, "cubic": ease_in_out_cubic, "sine": ease_in_out_sine}
+
+
+class ServoEaser:
+    """Bản Python của ServoEaser (giống tools/servo_lab/easer.py): không chặn, gọi update() đều đặn.
+
+    write(angle): hàm đặt góc thật cho servo. ease_to(góc, ms) hoặc play([(góc, ms), ...]) (move list)."""
+
+    def __init__(self, write, start, easing=ease_in_out_cubic):
+        self.write = write
+        self.easing = easing
+        self.curr = start
+        self.moves, self.idx = [], 0
+        self.start_pos, self.change, self.dur, self.t0 = start, 0.0, 0.0, 0.0
+        self.running = False
+
+    def ease_to(self, pos, dur_ms):
+        self.play([(pos, dur_ms)])
+
+    def play(self, moves):
+        self.moves, self.idx = list(moves), 0
+        if self.moves:
+            self._next()
+
+    def _next(self):
+        pos, dur_ms = self.moves[self.idx]
+        self.start_pos = self.curr
+        self.change = pos - self.curr
+        self.dur = max(dur_ms / 1000, 1e-3)
+        self.t0 = time.monotonic()
+        self.running = True
+
+    def update(self):
+        if not self.running:
+            return
+        t = time.monotonic() - self.t0
+        if t >= self.dur:
+            self.curr = self.start_pos + self.change
+            self.write(self.curr)
+            self.idx += 1
+            if self.idx < len(self.moves):
+                self._next()
+            else:
+                self.running = False        # "servo arrived"
+            return
+        self.curr = self.easing(t, self.start_pos, self.change, self.dur)
+        self.write(min(MAX_ANGLE, max(MIN_ANGLE, self.curr)))
+
+
+def run_easers(easers, frame_s):
+    """Gọi update() mỗi frame_s giây tới khi mọi servo đến nơi. Lịch theo đồng hồ, sleep trễ không cộng dồn."""
+    next_t = time.monotonic()
+    while any(e.running for e in easers):
+        for e in easers:
+            e.update()
+        next_t += frame_s
+        time.sleep(max(0.0, next_t - time.monotonic()))
 
 
 class FakePwm:
@@ -150,10 +236,17 @@ def validate(servo, bins):
         poses = [(b["id"], b["pan"], b["tilt_dir"]) for b in bins]
     except KeyError as e:
         raise SystemExit(f"cấu hình servo thiếu khoá {e} (hardware.json -> servo, bins.json -> bins[].pan/tilt_dir)")
-    if not all(isinstance(x, (int, float)) and math.isfinite(x) for x in nums):
+    if not all(isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) for x in nums):
         raise SystemExit("hardware.json -> servo: các giá trị phải là số hữu hạn")
-    if servo["speed_dps"] <= 0 or not 10 <= servo["update_hz"] <= 200:
-        raise SystemExit("speed_dps phải > 0 và update_hz trong 10..200")
+    if servo.get("easing", "cubic") not in EASINGS:
+        raise SystemExit(f"easing phải là một trong: {', '.join(EASINGS)}")
+    lo, hi = MOVE_MS_RANGE
+    if not (lo <= servo["pan_ms"] <= hi and lo <= servo["tilt_ms"] <= hi):
+        raise SystemExit(f"pan_ms, tilt_ms phải trong {lo}..{hi}")
+    if not 10 <= servo["update_hz"] <= 200:
+        raise SystemExit("update_hz phải trong 10..200")
+    if servo["settle_s"] < 0 or servo["hold_s"] < 0:
+        raise SystemExit("settle_s, hold_s phải >= 0")
     if servo["tilt_delta"] < 0 or servo["tilt_sign"] not in (-1, 1):
         raise SystemExit("tilt_delta phải >= 0 (đổi chiều bằng tilt_sign = 1 hoặc -1)")
     if not 0.5 <= servo["min_pulse_ms"] < servo["max_pulse_ms"] <= 2.5:
@@ -174,21 +267,28 @@ def tilt_angle(servo, direction):
 
 
 class PanTilt:
-    """Hai servo qua PWM phần cứng, mỗi servo quay mượt (tăng/giảm tốc) để không giật, không quá nhanh.
+    """Hai servo qua PWM phần cứng, mỗi servo quay mượt (ServoEaser) để không giật, không quá nhanh.
 
-    servo: mục "servo" của hardware.json (dict dùng chung, đổi giá trị lúc chạy được, vd tilt_delta)."""
+    servo: mục "servo" của hardware.json (dict dùng chung, đổi giá trị lúc chạy được: web /config sửa thẳng
+    vào dict này, lần quay sau dùng giá trị mới)."""
 
     def __init__(self, pins, servo, mock=False):
         self.pins = {"pan": pins["servo_pan"], "tilt": pins["servo_tilt"]}
-        # giới hạn xung 500..2500 µs để không đẩy servo quá biên
-        self.min_us = max(500, servo["min_pulse_ms"] * 1000)
-        self.max_us = min(2500, servo["max_pulse_ms"] * 1000)
         self.pwm = FakePwm(self.pins) if mock else SysfsPwm(self.pins, servo.get("pwm_chip"))
         self.cfg = servo
         self.pos = {}           # góc hiện tại (theo lệnh gần nhất)
         self.on_moved = None    # callback(name, angle) sau mỗi lần quay xong (giả lập dùng)
 
     # ---------- mức thấp ----------
+    # giới hạn xung 500..2500 µs để không đẩy servo quá biên; đọc từ cfg mỗi lần (chỉnh từ web được)
+    @property
+    def min_us(self):
+        return max(500, self.cfg["min_pulse_ms"] * 1000)
+
+    @property
+    def max_us(self):
+        return min(2500, self.cfg["max_pulse_ms"] * 1000)
+
     def _set(self, name, angle):
         us = self.min_us + (angle - MIN_ANGLE) / (MAX_ANGLE - MIN_ANGLE) * (self.max_us - self.min_us)
         self.pwm.set_pulse_us(name, round(us))
@@ -198,26 +298,16 @@ class PanTilt:
         """Đặt thẳng góc, không làm mượt. Chỉ dùng lúc khởi động (chưa biết servo đang ở đâu)."""
         self._set(name, angle)
 
-    def move(self, name, target):
-        """Quay mượt tới góc target: tăng tốc dần, giảm tốc dần (smootherstep).
-
-        Tốc độ đỉnh (giữa đoạn) = speed_dps. Góc tính theo đồng hồ chứ không đếm bước,
-        nên sleep trễ nhẹ cũng không làm chuyển động bị khựng."""
+    def move(self, name, target, dur_ms=None):
+        """Quay mượt tới góc target trong dur_ms (mặc định pan_ms / tilt_ms của cấu hình), theo easing
+        (cấu hình "easing": linear / quad / cubic / sine, mặc định cubic như ServoEaser)."""
         target = max(MIN_ANGLE, min(MAX_ANGLE, target))
-        start = self.pos[name]
-        dist = abs(target - start)
-        if dist >= 1e-6:
-            duration = dist * SMOOTHERSTEP_PEAK / self.cfg["speed_dps"]
-            period = 1.0 / self.cfg["update_hz"]
-            t0 = time.monotonic()
-            while True:
-                t = (time.monotonic() - t0) / duration
-                if t >= 1:
-                    break
-                s = t * t * t * (t * (6 * t - 15) + 10)
-                self._set(name, start + (target - start) * s)
-                time.sleep(period)
-            self._set(name, target)
+        if abs(target - self.pos[name]) >= 1e-6:
+            e = ServoEaser(lambda a: self._set(name, a), self.pos[name],
+                           EASINGS.get(self.cfg.get("easing", "cubic"), ease_in_out_cubic))
+            e.ease_to(target, self.cfg[f"{name}_ms"] if dur_ms is None else dur_ms)
+            run_easers([e], 1.0 / self.cfg["update_hz"])
+        self._set(name, target)
         if self.on_moved:
             self.on_moved(name, target)
 

@@ -59,6 +59,8 @@ def main():
     ap.add_argument("--show-distance", action="store_true",
                     help="in khoảng cách siêu âm mỗi lần đọc (mặc định ~1 s/lần, hardware.json -> distance_log_s)")
     ap.add_argument("--no-scale", action="store_true", help="không đọc cân load cell")
+    ap.add_argument("--no-remote", action="store_true",
+                    help="không đẩy log lên web / không nhận cấu hình, lệnh thử servo từ web")
     ap.add_argument("--config", default="config")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -69,6 +71,12 @@ def main():
     app, hw = cfg["app"], cfg["hw"]
     setup_logging(ROOT, args.verbose)
     log = logging.getLogger("main")
+    logbuf = None
+    if not (args.no_upload or args.no_remote):
+        from smartbin.remote import LogBuffer
+        logbuf = LogBuffer()        # gắn sớm để log khởi động (servo, model) cũng lên trang /logs
+        logbuf.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+        logging.getLogger().addHandler(logbuf)
 
     model, labels = ROOT / app["model"], ROOT / app["labels"]
     if model.exists():
@@ -84,8 +92,18 @@ def main():
     else:
         sys.exit(f"Không thấy model {model}. Chép model_int8.tflite + labels.json từ Kaggle vào models/")
 
+    if cfg["local"]:
+        log.info("Dùng %d thông số chỉnh từ web (config/local.json, xoá file để về cấu hình gốc)",
+                 len(cfg["local"]) - len(cfg["local_skipped"]))
+    if cfg["local_skipped"]:
+        log.warning("config/local.json: bỏ qua khoá không còn trong cấu hình gốc: %s", ", ".join(cfg["local_skipped"]))
     decider = Decider(cfg["bins"], clf.classes)
-    validate_servo(hw["servo"], cfg["bins"]["bins"])
+    try:
+        validate_servo(hw["servo"], cfg["bins"]["bins"])
+    except SystemExit as e:
+        if cfg["local"]:
+            raise SystemExit(f"{e}\n(có thể do config/local.json: sửa hoặc xoá file này)") from None
+        raise
 
     fake_io = args.mock or args.bench
     if fake_io:
@@ -146,6 +164,11 @@ def main():
     ctl = Controller(app, hw, sensor, camera, clf, decider, servos, ind, uploader, ROOT, door)
     if args.show_distance:
         ctl.distance_log_s = hw["poll_ms"] / 1000
+    remote = None
+    if logbuf:
+        from smartbin.remote import Remote
+        remote = Remote(app["server_url"], app["api_key"], app["device_id"], logbuf, hw["servo"], ctl.hw,
+                        decider, args.config, on_command=ctl.command)
     if (args.keyboard or args.bench) and not args.mock:   # --mock đã dùng Enter để đặt/lấy vật
         threading.Thread(target=_keyboard_trigger, args=(ctl.manual,), daemon=True, name="keys").start()
     signal.signal(signal.SIGTERM, _on_sigterm)
@@ -155,7 +178,7 @@ def main():
         log.info("Dừng.")
     finally:
         # servo đóng trước: về vị trí nghỉ rồi ngắt xung
-        for x in (servos, streamer, scale, uploader, camera, ind, door, sensor):
+        for x in (servos, remote, streamer, scale, uploader, camera, ind, door, sensor):
             if x:
                 try:
                     x.close()

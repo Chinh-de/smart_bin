@@ -1,4 +1,5 @@
-"""Web server lưu log thùng rác: nhận sự kiện + ảnh từ Pi, hiển thị lịch sử và thống kê.
+"""Web server lưu log thùng rác: nhận sự kiện + ảnh từ Pi, hiển thị lịch sử và thống kê,
+xem log trực tiếp của Pi (/logs), chỉnh thông số servo/cảm biến và chạy thử servo (/config).
 
     python server/app.py              # chạy ở 0.0.0.0:5000, xem từ điện thoại cùng WiFi
 Biến môi trường: SMARTBIN_API_KEY (mặc định "change-me", phải khớp config/app.json), SMARTBIN_PORT.
@@ -8,6 +9,8 @@ import os
 import re
 import threading
 import time
+import uuid
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 
@@ -285,7 +288,154 @@ def stream_mjpg(device_id):
                     headers={"Cache-Control": "no-store"})
 
 
+# ---------------- log trực tiếp + cấu hình từ xa ----------------
+# Pi gọi POST /api/sync/<id> mỗi giây (smartbin/remote.py): đẩy log, báo thông số hiện tại, nhận cấu hình
+# mới / lệnh thử servo. Chỉ giữ trong RAM: server khởi động lại thì Pi tự gửi lại thông số (need_config).
+LOG_KEEP = 5000
+LOG_PAGE = 1000
+SYNC_ONLINE_S = 5
+LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+
+class DeviceRT:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.logs, self.seq = deque(maxlen=LOG_KEEP), 0     # (seq, dòng log)
+        self.fields, self.values, self.config_ts = None, None, 0.0
+        self.pending = None          # {"id", "values", "ts"}: cấu hình web gửi, Pi chưa nhận kết quả
+        self.result = None           # kết quả áp dụng gần nhất do Pi báo
+        self.commands = []
+        self.last_sync = 0.0
+
+
+RT, RT_LOCK = {}, threading.Lock()
+
+
+def get_rt(device_id, create=False):
+    with RT_LOCK:
+        rt = RT.get(device_id)
+        if rt is None and create and SAFE_ID.match(device_id) and len(RT) < MAX_STREAMS:
+            rt = RT[device_id] = DeviceRT()
+        return rt
+
+
+@app.post("/api/sync/<device_id>")
+def api_sync(device_id):
+    require_key()
+    d = request.get_json(silent=True)
+    rt = get_rt(device_id, create=True)
+    if not isinstance(d, dict) or rt is None:
+        return jsonify(error="dữ liệu không hợp lệ hoặc quá nhiều thiết bị"), 400
+    with rt.lock:
+        rt.last_sync = time.time()
+        for ln in (d.get("logs") or [])[:2000]:
+            if not isinstance(ln, dict):
+                continue
+            rt.seq += 1
+            rt.logs.append((rt.seq, {
+                "ts": ln.get("ts") if isinstance(ln.get("ts"), (int, float)) else time.time(),
+                "level": ln.get("level") if ln.get("level") in LEVELS else "INFO",
+                "name": str(ln.get("name", ""))[:64], "msg": str(ln.get("msg", ""))[:4000]}))
+        c = d.get("config")
+        if isinstance(c, dict) and isinstance(c.get("fields"), list) and isinstance(c.get("values"), dict):
+            rt.fields, rt.values, rt.config_ts = c["fields"], c["values"], time.time()
+        r = d.get("result")
+        if isinstance(r, dict):
+            rt.result = {**r, "ts": time.time()}
+            if rt.pending and r.get("id") == rt.pending["id"]:
+                rt.pending = None
+        commands, rt.commands = rt.commands, []
+        return jsonify(need_config=rt.fields is None,
+                       config={"id": rt.pending["id"], "values": rt.pending["values"]} if rt.pending else None,
+                       commands=commands)
+
+
+@app.get("/api/logs/<device_id>")
+def api_logs(device_id):
+    rt = get_rt(device_id)
+    if rt is None:
+        return jsonify(seq=0, lines=[], online=False)
+    after = request.args.get("after", 0, type=int)
+    with rt.lock:
+        if after > rt.seq:            # server đã khởi động lại: trình duyệt đọc lại từ đầu
+            after = 0
+        lines = [{"seq": n, **ln} for n, ln in rt.logs if n > after][-LOG_PAGE:]
+        return jsonify(seq=rt.seq, lines=lines, online=time.time() - rt.last_sync < SYNC_ONLINE_S)
+
+
+@app.get("/api/config/<device_id>")
+def api_config_get(device_id):
+    rt = get_rt(device_id)
+    if rt is None:
+        return jsonify(online=False, fields=None)
+    with rt.lock:
+        return jsonify(online=time.time() - rt.last_sync < SYNC_ONLINE_S, fields=rt.fields, values=rt.values,
+                       pending=rt.pending, result=rt.result)
+
+
+@app.post("/api/config/<device_id>")
+def api_config_set(device_id):
+    rt = get_rt(device_id)
+    d = request.get_json(silent=True) or {}
+    values = d.get("values")
+    if rt is None or rt.fields is None:
+        return jsonify(error="thiết bị chưa kết nối"), 404
+    if not isinstance(values, dict) or not values:
+        return jsonify(error="không có thông số nào"), 400
+    keys = {f.get("key") for f in rt.fields}
+    if set(values) - keys:
+        return jsonify(error=f"thông số lạ: {', '.join(sorted(set(values) - keys))}"), 400
+    with rt.lock:
+        rt.pending = {"id": uuid.uuid4().hex[:12], "values": values, "ts": time.time()}
+        return jsonify(id=rt.pending["id"])
+
+
+@app.post("/api/command/<device_id>")
+def api_command(device_id):
+    rt = get_rt(device_id)
+    d = request.get_json(silent=True) or {}
+    if rt is None:
+        return jsonify(error="thiết bị chưa kết nối"), 404
+    if d.get("cmd") == "home":
+        cmd = {"cmd": "home"}
+    elif d.get("cmd") == "bin" and isinstance(d.get("bin"), int):
+        cmd = {"cmd": "bin", "bin": d["bin"]}
+    else:
+        return jsonify(error="lệnh không hợp lệ"), 400
+    with rt.lock:
+        if len(rt.commands) >= 3:
+            return jsonify(error="đang có lệnh chờ, thử lại sau"), 429
+        rt.commands.append(cmd)
+    return jsonify(status="ok")
+
+
 # ---------------- trang web ----------------
+def device_ids():
+    """Thiết bị trong CSDL + thiết bị đang đồng bộ (có thể chưa gửi heartbeat)."""
+    ids = {d["id"] for d in devices()}
+    with RT_LOCK:
+        ids |= set(RT)
+    return sorted(ids)
+
+
+def pick_device():
+    ids = device_ids()
+    want = request.args.get("device")
+    return (want if want in ids else (ids[0] if ids else None)), ids
+
+
+@app.get("/logs")
+def page_logs():
+    dev, ids = pick_device()
+    return render_template("logs.html", device=dev, ids=ids)
+
+
+@app.get("/config")
+def page_config():
+    dev, ids = pick_device()
+    return render_template("config.html", device=dev, ids=ids)
+
+
 def devices():
     out = []
     for r in get_db().execute("SELECT * FROM devices ORDER BY device_id"):
