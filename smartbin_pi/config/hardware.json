@@ -22,9 +22,6 @@
     "tilt_rest": 97,
     "tilt_delta": 42,
     "tilt_sign": 1,
-    "pan_approach": 0,
-    "tilt_approach": 0,
-    "approach_deg": 8,
 
     "easing": "cubic",
     "pan_ms": 500,

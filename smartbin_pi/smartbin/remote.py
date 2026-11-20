@@ -78,9 +78,6 @@ BASE_FIELDS = [
     ("Servo: góc", "servo.tilt_rest", "Dọc: góc nghỉ (°)", _num(0, 180, 0.5)),
     ("Servo: góc", "servo.tilt_delta", "Dọc: biên độ lật (°)", _num(0, 90, 0.5)),
     ("Servo: góc", "servo.tilt_sign", "Dọc: đảo chiều", _sel(1, -1)),
-    ("Servo: góc", "servo.pan_approach", "Ngang: về nghỉ từ phía (1 góc nhỏ, -1 góc lớn, 0 tắt)", _sel(0, 1, -1)),
-    ("Servo: góc", "servo.tilt_approach", "Dọc: về nghỉ từ phía (1 góc nhỏ, -1 góc lớn, 0 tắt)", _sel(0, 1, -1)),
-    ("Servo: góc", "servo.approach_deg", "Quay vượt góc nghỉ (°)", _num(0, 45, 0.5)),
     ("Servo: góc", "servo.min_pulse_ms", "Xung 0° (ms)", _num(0.5, 2.5, 0.01)),
     ("Servo: góc", "servo.max_pulse_ms", "Xung 180° (ms)", _num(0.5, 2.5, 0.01)),
     ("Phát hiện vật", "hw.trigger_mode", "Cách kích hoạt", _sel("hand", "object")),
@@ -126,7 +123,7 @@ class Remote:
     def _get(self, key):
         grp, _, rest = key.partition(".")
         if grp == "servo":
-            return self.servo.get(rest, 0 if rest in ("pan_approach", "tilt_approach", "approach_deg") else None)
+            return self.servo.get(rest)
         if grp == "hw":
             return self.hw.get(rest)
         if grp == "cls":

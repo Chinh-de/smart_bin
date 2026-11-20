@@ -25,7 +25,8 @@ STARTUP_WAIT_S = 1.2       # chưa biết servo đang ở đâu: chờ đủ th�
 ARRIVE_S = 0.3             # giữ xung thêm sau khi đường easing kết thúc: servo trễ hơn lệnh, chờ tới nơi rồi mới ngắt
 RESEAT_HOLD_S = 0.5        # về nghỉ lại: giữ xung ở góc nghỉ cho servo kéo về chỗ (đang ngắt xung nên có thể đã lệch)
 RESEAT_DEG = 20            # về nghỉ lại: lùi ra bấy nhiêu độ rồi quay mượt về, giống đường về của chu trình thả rác
-APPROACH_KEYS = ("pan_approach", "tilt_approach")
+LOCK_OFF_S = 0.1           # chốt góc nghỉ: ngắt xung bấy lâu rồi bật lại xung thẳng ở góc nghỉ
+LOCK_HOLD_S = 0.3          # chốt góc nghỉ: giữ xung bấy lâu rồi mới ngắt hẳn
 
 PWM_ROOT = Path("/sys/class/pwm")
 PWM_PERIOD_NS = 20_000_000  # 50 Hz
@@ -251,10 +252,6 @@ def validate(servo, bins):
         raise SystemExit("update_hz phải trong 10..200")
     if servo["settle_s"] < 0 or servo["hold_s"] < 0:
         raise SystemExit("settle_s, hold_s phải >= 0")
-    if any(servo.get(k, 0) not in (-1, 0, 1) for k in APPROACH_KEYS):
-        raise SystemExit("pan_approach, tilt_approach phải là 0 (tắt), 1 (về nghỉ từ góc nhỏ) hoặc -1 (từ góc lớn)")
-    if not 0 <= servo.get("approach_deg", 0) <= 45:
-        raise SystemExit("approach_deg phải trong 0..45")
     if servo["tilt_delta"] < 0 or servo["tilt_sign"] not in (-1, 1):
         raise SystemExit("tilt_delta phải >= 0 (đổi chiều bằng tilt_sign = 1 hoặc -1)")
     if not 0.5 <= servo["min_pulse_ms"] < servo["max_pulse_ms"] <= 2.5:
@@ -350,41 +347,41 @@ class PanTilt:
         self.dump(pan, tilt_dir)        # dump() luôn kết thúc bằng home() + ngắt xung
 
     def _go_rest(self, name, reseat=False):
-        """Quay servo về góc nghỉ, luôn đi tới từ cùng một chiều nếu có đặt <name>_approach.
+        """Quay mượt servo về góc nghỉ.
 
-        Servo có vùng chết + độ rơ bánh răng: dừng khi còn cách đích một chút, lệch về phía nó đi tới. Đi tới
-        góc nghỉ từ 2 phía khác nhau thì dừng ở 2 chỗ khác nhau (thả thùng bên này về đúng, bên kia về thiếu).
-        <name>_approach = 1: luôn về nghỉ từ phía góc NHỎ (đi lên), -1: từ phía góc LỚN (đi xuống), 0: về thẳng.
-        Đang ở phía ngược lại thì quay vượt qua góc nghỉ approach_deg độ rồi mới quay về.
-
-        reseat=True: self.pos chỉ là góc của lệnh gần nhất; servo đã ngắt xung thì khay có thể bị lệch mà code
-        không biết, move() tới đúng góc đang nhớ sẽ không quay gì. Khi đó giữ xung ở góc nghỉ, lùi ra RESEAT_DEG
-        (về phía đúng chiều đi tới) rồi quay mượt về, giống đường về của chu trình thả rác."""
+        reseat=True (nút "Về nghỉ" trên web): self.pos chỉ là góc của lệnh gần nhất; servo đã ngắt xung thì khay
+        có thể bị lệch mà code không biết, move() tới đúng góc đang nhớ sẽ không quay gì. Khi đó giữ xung ở góc
+        nghỉ, lùi ra RESEAT_DEG rồi quay mượt về, giống đường về của chu trình thả rác."""
         rest = self.cfg[f"{name}_rest"]
-        d = self.cfg.get(f"{name}_approach", 0)
         if reseat and abs(self.pos[name] - rest) < 1e-6:
             self._set(name, rest)
             time.sleep(RESEAT_HOLD_S)
-            side = -d or -1                       # lùi về phía mà từ đó đi tới góc nghỉ theo đúng chiều
-            away = rest + side * RESEAT_DEG
-            if not MIN_ANGLE <= away <= MAX_ANGLE:
-                away = rest - side * RESEAT_DEG if not d else max(MIN_ANGLE, min(MAX_ANGLE, away))
-            self.move(name, away)
+            self.move(name, rest - RESEAT_DEG if rest - RESEAT_DEG >= MIN_ANGLE else rest + RESEAT_DEG)
             time.sleep(ARRIVE_S)
-        over = self.cfg.get("approach_deg", 0)
-        if d and over > 0 and (self.pos[name] - rest) * d > 0:     # đang ở phía "xấu"
-            self.move(name, max(MIN_ANGLE, min(MAX_ANGLE, rest - d * over)))
-            time.sleep(ARRIVE_S)               # tới hẳn rồi mới đổi chiều, không thì vẫn mang theo độ rơ cũ
         self.move(name, rest)
 
+    def _lock_rest(self):
+        """Chốt góc nghỉ: ngắt xung, rồi bật lại xung THẲNG ở góc nghỉ (không easing) và giữ một lúc, như nút
+        "Về nghỉ" (luôn về đúng góc trên máy thật).
+
+        Cuối đường easing góc lệnh chỉ nhích ~0.1°/bước, servo bám theo và dừng khi sai số còn nhỏ hơn vùng chết
+        -> khay về thiếu một tí (thả thùng 1 xong về lệch). Bật lại xung từ trạng thái ngắt thì servo nhận một
+        lệnh nhảy thẳng tới góc nghỉ, kéo hết lực và tới đúng chỗ."""
+        self.release()
+        time.sleep(LOCK_OFF_S)
+        for name in ("tilt", "pan"):
+            self._set(name, self.cfg[f"{name}_rest"])
+        time.sleep(LOCK_HOLD_S)
+        self.release()
+
     def home(self, reseat=False):
-        """Dọc về ngang trước, rồi mới xoay ngang về giữa (tránh quét khay khi đang nghiêng), chờ servo tới nơi
-        rồi mới ngắt xung. Chiều đi tới góc nghỉ / reseat: xem _go_rest()."""
+        """Dọc về ngang trước, rồi mới xoay ngang về giữa (tránh quét khay khi đang nghiêng), chờ servo tới nơi,
+        chốt góc nghỉ (_lock_rest) rồi ngắt xung. reseat: xem _go_rest()."""
         with ignore_sigint():
             for name in ("tilt", "pan"):
                 self._go_rest(name, reseat)
             time.sleep(ARRIVE_S)
-            self.release()
+            self._lock_rest()
 
     def dump(self, pan, tilt_dir):
         """Xoay khay tới pan, lật theo tilt_dir để rác trượt xuống thùng, rồi về nghỉ.

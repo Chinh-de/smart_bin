@@ -85,10 +85,9 @@ dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4
 Chuyển động servo theo cơ chế ServoEaser (thử nghiệm ở `tools/servo_lab/easer.py`): mỗi lần quay tới góc trong đúng
 `pan_ms`/`tilt_ms` (không theo tốc độ), góc theo hàm easing kiểu Robert Penner, mặc định `cubic` (easeInOutCubic).
 
-Khay về nghỉ lệch một tí về một bên (thả thùng bên này về đúng, bên kia về thiếu) là do vùng chết + độ rơ bánh răng
-của servo: chỗ dừng phụ thuộc chiều đi tới. Đặt `pan_approach` / `tilt_approach` để servo luôn về nghỉ từ phía về đúng:
-`-1` = từ phía góc lớn (vd thả thùng 135° rồi về thì đúng), `1` = từ phía góc nhỏ (thùng 45° về đúng), `0` = tắt.
-Đang ở phía kia thì servo quay vượt góc nghỉ `approach_deg` độ (mặc định 8) rồi mới quay về. Chỉnh được ở trang **Cấu hình**.
+Về nghỉ (sau mỗi lần thả rác, nút "Về nghỉ" trên web) kết thúc bằng bước **chốt góc**: quay mượt về nghỉ, ngắt xung 0.1 s,
+rồi bật lại xung thẳng ở góc nghỉ 0.3 s mới ngắt hẳn. Cuối đường easing servo hay dừng thiếu một tí (sai số nhỏ hơn vùng chết
+của servo), lệnh nhảy thẳng từ trạng thái ngắt xung kéo nó về đúng góc.
 
 Kiểm tra: `ls /sys/class/pwm/` phải thấy `pwmchip0`. Nếu báo không ghi được `/sys/class/pwm`, chạy `sudo usermod -aG gpio $USER` rồi đăng nhập lại (hoặc chạy bằng `sudo`). Không chạy `servo_test.py` cùng lúc với `main.py`.
 
