@@ -17,6 +17,8 @@ from pathlib import Path
 
 import cv2
 
+from smartbin.servo import RESEAT_DEG
+
 log = logging.getLogger(__name__)
 
 CSV_FIELDS = ["timestamp", "event_id", "result", "bin_id", "bin_name", "top_class", "top_prob",
@@ -132,8 +134,8 @@ class Controller:
                              b["tilt_dir"])
                     self.servos.dump(b["pan"], b["tilt_dir"])
                 elif cmd.get("cmd") == "home":
-                    log.info("Web: về vị trí nghỉ")
-                    self.servos.home()
+                    log.info("Web: về vị trí nghỉ (lùi ra %s° rồi quay mượt về từng servo)", RESEAT_DEG)
+                    self.servos.home(reseat=True)
                 else:
                     log.warning("Lệnh từ web không hợp lệ: %s", cmd)
                     continue

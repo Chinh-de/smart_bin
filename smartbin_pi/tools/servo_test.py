@@ -98,7 +98,7 @@ def main():
                 pt.dump(b["pan"], b["tilt_dir"])
                 print(f"xong ({time.monotonic() - t0:.2f} s)")
             elif k == "h":
-                pt.home()
+                pt.home(reseat=True)
             elif k in ("p", "v") and arg is not None:
                 angle = parse_angle(arg)
                 if angle is not None:
