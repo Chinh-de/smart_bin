@@ -168,7 +168,9 @@ def main():
     if logbuf:
         from smartbin.remote import Remote
         remote = Remote(app["server_url"], app["api_key"], app["device_id"], logbuf, hw["servo"], ctl.hw,
-                        decider, args.config, on_command=ctl.command)
+                        decider, args.config,
+                        on_command=lambda c: scale.command(c) if scale and str(c.get("cmd", "")).startswith("scale_")
+                        else ctl.command(c))
     if (args.keyboard or args.bench) and not args.mock:   # --mock đã dùng Enter để đặt/lấy vật
         threading.Thread(target=_keyboard_trigger, args=(ctl.manual,), daemon=True, name="keys").start()
     signal.signal(signal.SIGTERM, _on_sigterm)

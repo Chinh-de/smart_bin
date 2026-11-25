@@ -38,7 +38,6 @@ config/loadcell.json (tự tạo khi gõ t / c).
 Đọc HX711 bằng lgpio (cùng thư viện gpiozero dùng ở bên dưới): bit-bang 24 xung. Xung SCK ở mức cao
 > 60 µs thì HX711 tự tắt nguồn nên thỉnh thoảng có mẫu hỏng; script lấy trung vị nhiều mẫu để loại chúng."""
 import argparse
-import json
 import math
 import statistics
 import sys
@@ -46,18 +45,12 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from smartbin import ROOT, load_json  # noqa: E402
+from smartbin import load_json  # noqa: E402
 
 from smartbin.scale import (CALIB_PATH, SAT_MAX, SAT_MIN, FakeHx711, Hx711,  # noqa: E402
-                            load_calib, sample, to_grams)
+                            load_calib, sample, save_calib, to_grams)
 
 SAMPLES_DEFAULT = 5
-
-
-def save_calib(calib):
-    with open(ROOT / CALIB_PATH, "w", encoding="utf-8") as f:
-        json.dump(calib, f, indent=2)
-        f.write("\n")
 
 
 def show_config(calib):

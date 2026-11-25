@@ -233,15 +233,23 @@ def api_weight(device_id):
         return jsonify(error="dữ liệu cân không hợp lệ"), 400
     if device_id in WEIGHTS or len(WEIGHTS) < MAX_STREAMS:
         WEIGHTS[device_id] = {"grams": g, "calibrated": bool(d.get("calibrated")),
-                              "error": str(d["error"])[:200] if d.get("error") else None, "ts": time.time()}
+                              "error": str(d["error"])[:200] if d.get("error") else None, "ts": time.time(),
+                              **{k: d[k] for k in ("raw", "offset", "scale") if isinstance(d.get(k), (int, float))},
+                              "msg": _scale_msg(d.get("msg"))}
     return jsonify(status="ok")
+
+
+def _scale_msg(m):
+    if isinstance(m, dict) and isinstance(m.get("ts"), (int, float)):
+        return {"ok": bool(m.get("ok")), "text": str(m.get("text", ""))[:300], "ts": m["ts"]}
+    return None
 
 
 def weight_of(device_id):
     w = WEIGHTS.get(device_id)
     if not w or time.time() - w["ts"] > WEIGHT_STALE_S:
         return None
-    return {k: w[k] for k in ("grams", "calibrated", "error")}
+    return {k: w.get(k) for k in ("grams", "calibrated", "error", "raw", "offset", "scale", "msg")}
 
 
 @app.get("/api/stream/state")
@@ -400,6 +408,11 @@ def api_command(device_id):
         cmd = {"cmd": "home"}
     elif d.get("cmd") == "bin" and isinstance(d.get("bin"), int):
         cmd = {"cmd": "bin", "bin": d["bin"]}
+    elif d.get("cmd") == "scale_tare":
+        cmd = {"cmd": "scale_tare"}
+    elif d.get("cmd") == "scale_calib" and isinstance(d.get("grams"), (int, float)) \
+            and not isinstance(d["grams"], bool) and 0 < d["grams"] <= 1e6:
+        cmd = {"cmd": "scale_calib", "grams": d["grams"]}
     else:
         return jsonify(error="lệnh không hợp lệ"), 400
     with rt.lock:

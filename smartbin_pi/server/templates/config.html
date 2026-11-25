@@ -35,6 +35,19 @@
   <span class="muted">Chạy khi thiết bị đang chờ vật và khay trống. Lưu cấu hình trước rồi mới thử.</span>
 </div>
 
+<h2>Cân</h2>
+<div class="card">
+  <div style="font-size:22px;"><b id="sc-g">—</b> <span class="muted" style="font-size:13px;">raw <span id="sc-raw">—</span> · <span id="sc-state"></span></span></div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+    <button type="button" id="sc-tare">Tare (cân trống)</button>
+    <input type="number" id="sc-w" min="1" step="any" placeholder="gram" style="width:90px; padding:5px 6px;">
+    <button type="button" id="sc-cal">Hiệu chuẩn</button>
+  </div>
+  <p class="muted" style="margin:8px 0 0;">1) Bỏ hết khỏi cân, bấm Tare. 2) Đặt vật đã biết khối lượng, nhập số gram, bấm Hiệu chuẩn.
+    Kết quả lưu vào <code>config/loadcell.json</code> trên Pi.</p>
+  <div id="sc-msg" class="muted"></div>
+</div>
+
 <h2>Thông số</h2>
 <p class="muted" id="empty">Đang tải…</p>
 <form id="form" class="groups"></form>
@@ -159,7 +172,39 @@ async function command(c) {
 }
 document.querySelector('[data-cmd="home"]').onclick = () => command({cmd: "home"});
 
+let scMsgTs = 0, scWait = false;
+async function scaleLoad() {
+  try {
+    const all = await (await fetch("/api/stream/state", {cache: "no-store"})).json();
+    const w = (all[dev] || {}).weight, el = id => document.getElementById(id);
+    if (!w) { el("sc-g").textContent = "—"; el("sc-raw").textContent = "—"; el("sc-state").textContent = "chưa có dữ liệu cân"; return; }
+    el("sc-g").textContent = w.grams == null ? "—" : w.grams.toFixed(1) + " g";
+    el("sc-raw").textContent = w.raw == null ? "—" : Math.round(w.raw);
+    el("sc-state").textContent = w.error ? "lỗi: " + w.error : (w.calibrated ? "đã hiệu chuẩn" : "chưa hiệu chuẩn");
+    if (w.msg && w.msg.ts !== scMsgTs) {
+      if (scMsgTs || scWait) { const m = el("sc-msg"); m.textContent = w.msg.text; m.className = w.msg.ok ? "ok" : "err"; }
+      scMsgTs = w.msg.ts; scWait = false;
+    }
+  } catch (e) {}
+}
+async function scaleCmd(c) {
+  const m = document.getElementById("sc-msg");
+  try {
+    const r = await fetch(`/api/command/${encodeURIComponent(dev)}`, {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify(c)});
+    const j = await r.json();
+    scWait = r.ok; m.className = r.ok ? "muted" : "err"; m.textContent = r.ok ? "Đã gửi, đang chờ thiết bị…" : (j.error || "Lỗi");
+  } catch (err) { m.className = "err"; m.textContent = "Không gửi được: " + err; }
+}
+document.getElementById("sc-tare").onclick = () => scaleCmd({cmd: "scale_tare"});
+document.getElementById("sc-cal").onclick = () => {
+  const g = parseFloat(document.getElementById("sc-w").value);
+  if (!(g > 0)) { const m = document.getElementById("sc-msg"); m.className = "err"; m.textContent = "Nhập khối lượng vật (gram) > 0"; return; }
+  scaleCmd({cmd: "scale_calib", grams: g});
+};
+
 load(true); setInterval(load, 1000);
+scaleLoad(); setInterval(scaleLoad, 1000);
 </script>
 {% endif %}
 {% endblock %}
