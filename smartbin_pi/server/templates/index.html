@@ -1,120 +1,323 @@
 {% extends "base.html" %}
-{% from "_macros.html" import result_tag, bars %}
+{% block head %}
+<style>
+  main { max-width:1280px; }
+  .live { display:grid; grid-template-columns:minmax(0, 1fr) 360px; gap:16px; align-items:start; }
+  .live h2 { margin-top:0; }
+  .dev-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .dev-bar b { font-size:16px; }
+  .dev-bar select { padding:4px 6px; font-size:14px; }
+  .dev-bar .state { margin-left:auto; }
+  .cam { width:100%; aspect-ratio:4/3; max-height:max(240px, calc(100vh - 300px)); object-fit:contain; background:#111; border-radius:8px; display:block; }
+  .cam-foot { display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap; }
+  .cam-foot button { padding:6px 12px; font-size:14px; }
+  .metrics { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); margin-top:12px; }
+  .metric .big { font-size:34px; line-height:1.15; margin:4px 0 2px; font-variant-numeric:tabular-nums; }
+  .metric .unit { font-size:16px; font-weight:500; color:var(--muted); margin-left:4px; }
+  .metric.hot { border-color:#f59e0b; box-shadow:0 0 0 1px #f59e0b inset; }
+
+  .side { position:sticky; top:12px; display:flex; flex-direction:column; max-height:calc(100vh - 90px); }
+  .side-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px; }
+  .side-head h2 { margin:0; }
+  .side-head a { font-size:13px; color:var(--b1); text-decoration:none; }
+  #recent { list-style:none; margin:0; padding:0; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:0; }
+  .rec { display:flex; gap:10px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:10px;
+         padding:8px; color:inherit; text-decoration:none; }
+  .rec:hover { border-color:#9ca3af; }
+  .rec img, .rec .noimg { width:76px; height:57px; flex:0 0 76px; object-fit:cover; border-radius:6px; background:#e5e7eb; }
+  .rec .body { min-width:0; font-size:13px; line-height:1.5; }
+  .rec .cls { font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rec.fresh { animation:flash 2.4s ease-out; }
+  .rec .warn { color:var(--err); }
+  @keyframes flash { from { background:#dbeafe; border-color:var(--b1); } to { background:var(--card); } }
+
+  .chart { margin-top:12px; --series-1:#257de0; }
+  .chart-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  .chart-head b { font-size:15px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg button { border:0; background:var(--card); color:var(--text); padding:5px 12px; font-size:13px; cursor:pointer; }
+  .seg button + button { border-left:1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background:#e8f0fd; color:#1b5fb4; font-weight:600; }
+  #plot { position:relative; height:240px; outline-offset:2px; }
+  #plot svg { display:block; width:100%; height:100%; overflow:visible; }
+  #plot .empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 16px; }
+  .tip { position:absolute; pointer-events:none; background:var(--card); border:1px solid var(--line); border-radius:8px;
+         padding:6px 9px; box-shadow:0 2px 8px rgba(0,0,0,.12); font-size:12.5px; line-height:1.45; white-space:nowrap; z-index:2; }
+  .tip strong { font-size:15px; }
+  .tip .key { display:inline-block; width:12px; height:2px; background:var(--series-1); vertical-align:middle; margin-right:6px; }
+  .chart details { margin-top:6px; font-size:13px; }
+  .chart summary { cursor:pointer; color:var(--muted); }
+  .chart .wrap { max-height:220px; overflow:auto; margin-top:6px; }
+  .chart table td, .chart table th { padding:4px 8px; font-size:13px; }
+  @media (max-width:860px) {
+    .live { grid-template-columns:1fr; }
+    .side { position:static; max-height:none; }
+    #recent { max-height:60vh; }
+    .cam { max-height:56vh; }
+  }
+</style>
+{% endblock %}
 {% block body %}
-<h2>Video trực tiếp</h2>
-<div id="live" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 640px));">
-  {% for d in devices %}
-  <div class="card" data-id="{{ d.id }}">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-      <b>{{ d.id }}</b>
-      <span class="muted"><span class="dot off-dot" data-dot></span><span data-label>Đang nối…</span></span>
+{% if not device %}
+<p class="muted">Chưa có thiết bị nào kết nối. Chạy <code>main.py</code> trên Pi (không dùng <code>--no-upload</code>).</p>
+{% else %}
+<div class="live">
+  <section>
+    <div class="dev-bar">
+      <b>{{ device }}</b>
+      {% if ids | length > 1 %}
+      <select aria-label="Chọn thiết bị" onchange="location.search = '?device=' + encodeURIComponent(this.value)">
+        {% for i in ids %}<option {{ 'selected' if i == device }}>{{ i }}</option>{% endfor %}
+      </select>
+      {% endif %}
+      <span class="muted state"><span class="dot off-dot" id="dot"></span><span id="label">Đang nối…</span></span>
     </div>
-    <div style="display:flex; gap:10px; align-items:stretch; flex-wrap:wrap;">
-      <img data-cam alt="video {{ d.id }}" style="flex:1 1 280px; min-width:0; aspect-ratio:4/3; object-fit:contain; background:#111; border-radius:6px; display:block;">
-      <div class="card" style="flex:0 0 130px; display:flex; flex-direction:column; justify-content:center; text-align:center; margin:0;">
+
+    <img id="cam" class="cam" alt="Video trực tiếp {{ device }}">
+    <div class="cam-foot">
+      <button id="toggle">Tạm dừng</button>
+      <span class="muted">Thiết bị chỉ gửi hình khi có người xem. Đèn chiếu chỉ bật lúc chụp nên hình có thể tối.</span>
+    </div>
+
+    <div class="metrics">
+      <div class="card metric">
         <div class="muted">Cân</div>
-        <div class="big" data-weight>–</div>
-        <div class="muted" data-weight-note>Chưa có số liệu</div>
+        <div class="big" id="weight">–</div>
+        <div class="muted" id="weight-note">Chưa có số liệu</div>
+      </div>
+      <div class="card metric" id="dist-card">
+        <div class="muted">Siêu âm (khoảng cách tới khay)</div>
+        <div class="big" id="dist">–</div>
+        <div class="muted" id="dist-note">Chưa có số liệu</div>
       </div>
     </div>
-    <button data-toggle style="margin-top:8px; padding:6px 10px;">Tạm dừng</button>
-    <div class="muted" style="margin-top:6px;">Thiết bị chỉ gửi hình khi có người xem. Đèn chiếu chỉ bật lúc chụp nên hình có thể tối.</div>
-  </div>
-  {% else %}
-  <p class="muted" id="live-empty">Chưa có thiết bị nào kết nối.</p>
-  {% endfor %}
-</div>
 
-<div id="dash">
-<h2>Mới nhất</h2>
-<div class="events">
-  {% for e in events %}
-  <a class="ev" href="/events/{{ e.event_id }}">
-    {% if e.image_path %}<img src="/uploads/{{ e.image_path }}" alt="" loading="lazy">{% endif %}
-    <div>{{ result_tag(e) }} <b>{{ e.top_class }}</b> {{ e.top_prob | pct }}<br>
-      <span class="muted">{{ e.ts | hm }}{{ ' · không chắc' if e.uncertain }}</span></div>
-  </a>
-  {% else %}
-  <p class="muted">Chưa có sự kiện nào.</p>
-  {% endfor %}
-</div>
+    <div class="card chart" id="wchart">
+      <div class="chart-head">
+        <div><b>Khối lượng theo lần nhận diện</b><div class="muted">Số cân (g) lúc nhận kết quả từ thiết bị, khi rác đã rơi vào thùng</div></div>
+        <div class="seg" role="group" aria-label="Khoảng thời gian">
+          <button type="button" data-h="1">1 giờ</button><button type="button" data-h="24">24 giờ</button><button type="button" data-h="168">7 ngày</button>
+        </div>
+      </div>
+      <div id="plot" tabindex="0" role="img" aria-label="Biểu đồ khối lượng theo thời gian; dùng phím mũi tên trái phải để xem từng điểm"></div>
+      <details><summary>Bảng số liệu</summary><div class="wrap"><table><thead><tr><th>Thời gian</th><th>Lớp</th><th>Thùng</th><th>Khối lượng</th></tr></thead><tbody id="wtable"></tbody></table></div></details>
+    </div>
+  </section>
 
-<h2>Thiết bị</h2>
-<div class="grid">
-  {% for d in devices %}
-  <div class="card">
-    <div><span class="dot {{ 'on-dot' if d.online else 'off-dot' }}"></span><b>{{ d.id }}</b></div>
-    <div class="muted">{{ 'Online' if d.online else 'Offline' }} · lần cuối {{ d.last_seen }}</div>
-    {% if d.info %}
-    <div class="muted">CPU {{ d.info.cpu_temp_c or '?' }}°C · chờ gửi {{ d.info.pending or 0 }} · chạy {{ ((d.info.uptime_s or 0) // 60) }} phút</div>
-    {% endif %}
-  </div>
-  {% else %}
-  <p class="muted">Chưa có thiết bị nào kết nối.</p>
-  {% endfor %}
-</div>
-
-<h2>Hôm nay ({{ today }})</h2>
-<div class="grid">
-  <div class="card"><div class="muted">Tổng số lần</div><div class="big">{{ stats.total }}</div></div>
-  {% for b in stats.by_bin %}
-  <div class="card"><div class="muted">{{ b.k }}</div><div class="big">{{ b.n }}</div></div>
-  {% endfor %}
-  <div class="card"><div class="muted">Suy luận TB</div><div class="big">{{ stats.avg_inference_ms }}<span class="muted"> ms</span></div></div>
-</div>
-
+  <aside class="side">
+    <div class="side-head"><h2>Nhận diện gần đây</h2><a href="/events">Xem tất cả →</a></div>
+    <ul id="recent"></ul>
+  </aside>
 </div>
 
 <script>
-// Video nằm ngoài #dash nên không bị tải lại; chỉ #dash (thiết bị, số liệu, mới nhất) được làm mới mỗi 5 giây.
-function setupCard(card) {
-  const id = card.dataset.id, img = card.querySelector("[data-cam]"), btn = card.querySelector("[data-toggle]");
-  const dot = card.querySelector("[data-dot]"), label = card.querySelector("[data-label]");
-  const wVal = card.querySelector("[data-weight]"), wNote = card.querySelector("[data-weight-note]");
-  let playing = true, retry = null;
-  const start = () => { clearTimeout(retry); img.src = `/stream/${encodeURIComponent(id)}.mjpg?t=${Date.now()}`; };
-  img.onerror = () => { if (playing) retry = setTimeout(start, 3000); };   // server đóng luồng khi lâu không có hình: nối lại
-  btn.onclick = () => {
-    playing = !playing;
-    btn.textContent = playing ? "Tạm dừng" : "Phát";
-    if (playing) start(); else { clearTimeout(retry); img.removeAttribute("src"); }
-  };
-  start();
-  async function poll() {
-    try {
-      const s = (await (await fetch("/api/stream/state")).json())[id];
-      const live = !!(s && s.live) && playing;
-      dot.className = "dot " + (live ? "on-dot" : "off-dot");
-      label.textContent = !playing ? "Đã tạm dừng" : live ? "Đang phát" : "Chờ thiết bị gửi hình…";
-      const w = s && s.weight;
-      if (!w) { wVal.textContent = "–"; wNote.textContent = "Chưa có số liệu"; }
-      else if (w.grams == null) { wVal.textContent = "–"; wNote.textContent = w.error || "Lỗi cân"; }
-      else {
-        wVal.textContent = w.calibrated ? `${w.grams.toFixed(w.grams < 100 ? 1 : 0)} g` : Math.round(w.grams);
-        wNote.textContent = w.calibrated ? "Khối lượng trên khay" : "Chưa hiệu chuẩn (số thô)";
-      }
-    } catch (e) { label.textContent = "Mất kết nối server"; }
-  }
-  poll(); setInterval(poll, 1000);
-}
-document.querySelectorAll("#live [data-id]").forEach(setupCard);
+const dev = {{ device | tojson }};
+const $ = id => document.getElementById(id);
+const img = $("cam"), btn = $("toggle");
 
-async function refresh() {
+// ---------- video ----------
+let playing = true, retry = null;
+const start = () => { clearTimeout(retry); img.src = `/stream/${encodeURIComponent(dev)}.mjpg?t=${Date.now()}`; };
+img.onerror = () => { if (playing) retry = setTimeout(start, 3000); };   // server đóng luồng khi lâu không có hình: nối lại
+btn.onclick = () => {
+  playing = !playing;
+  btn.textContent = playing ? "Tạm dừng" : "Phát";
+  if (playing) start(); else { clearTimeout(retry); img.removeAttribute("src"); }
+};
+start();
+
+// ---------- cân + siêu âm (mỗi giây) ----------
+function showWeight(w) {
+  const v = $("weight"), n = $("weight-note");
+  if (!w) { v.textContent = "–"; n.textContent = "Chưa có số liệu"; }
+  else if (w.grams == null) { v.textContent = "–"; n.textContent = w.error || "Lỗi cân"; }
+  else if (w.calibrated) {
+    v.textContent = Math.round(w.grams);
+    const u = document.createElement("span"); u.className = "unit"; u.textContent = "g"; v.append(u);
+    n.textContent = "Khối lượng trong thùng";
+  } else { v.textContent = Math.round(w.grams); n.textContent = "Chưa hiệu chuẩn (số thô)"; }
+}
+function showDistance(d) {
+  const v = $("dist"), n = $("dist-note"), card = $("dist-card");
+  card.classList.remove("hot");
+  if (!d) { v.textContent = "–"; n.textContent = "Chưa có số liệu"; return; }
+  v.textContent = d.cm.toFixed(1);
+  const u = document.createElement("span"); u.className = "unit"; u.textContent = "cm"; v.append(u);
+  if (d.trigger_cm != null && d.cm < d.trigger_cm) { n.textContent = `Có vật/tay trong khay (< ${d.trigger_cm} cm)`; card.classList.add("hot"); }
+  else if (d.clear_cm != null && d.cm > d.clear_cm) n.textContent = "Khay trống";
+  else n.textContent = "Đang đo";
+}
+async function pollState() {
+  try {
+    const s = (await (await fetch("/api/stream/state", {cache: "no-store"})).json())[dev];
+    const live = !!(s && s.live) && playing;
+    $("dot").className = "dot " + (live ? "on-dot" : "off-dot");
+    $("label").textContent = !playing ? "Đã tạm dừng" : live ? "Đang phát" : "Chờ thiết bị gửi hình…";
+    showWeight(s && s.weight);
+    showDistance(s && s.distance);
+  } catch (e) { $("label").textContent = "Mất kết nối server"; }
+}
+pollState(); setInterval(pollState, 1000);
+
+// ---------- danh sách nhận diện (sidebar) ----------
+const TAG = {REJECT: "Từ chối", ERROR: "Lỗi"};
+let shown = null;                 // id các sự kiện đang hiển thị; null = chưa vẽ lần nào (lần đầu không nháy)
+function item(e, fresh) {
+  const a = document.createElement("a");
+  a.className = "rec" + (fresh ? " fresh" : "");
+  a.href = "/events/" + encodeURIComponent(e.event_id);
+  let thumb;
+  if (e.image_path) { thumb = document.createElement("img"); thumb.src = "/uploads/" + e.image_path; thumb.alt = ""; thumb.loading = "lazy"; }
+  else { thumb = document.createElement("div"); thumb.className = "noimg"; }
+  const body = document.createElement("div"); body.className = "body";
+  const tag = document.createElement("span");
+  tag.className = "tag t-" + (e.result === "BIN" ? e.bin_id : e.result);
+  tag.textContent = e.result === "BIN" ? e.bin_name : (TAG[e.result] || e.result);
+  const cls = document.createElement("div"); cls.className = "cls";
+  cls.textContent = `${e.top_class || "—"} ${e.top_prob != null ? Math.round(e.top_prob * 100) + "%" : ""}`;
+  const meta = document.createElement("div"); meta.className = "muted";
+  const today = new Date().toLocaleDateString("sv");          // yyyy-mm-dd theo giờ máy
+  meta.textContent = (e.ts.slice(0, 10) === today ? "" : e.ts.slice(8, 10) + "/" + e.ts.slice(5, 7) + " ") + e.ts.slice(11, 19);
+  if (e.weight_g != null) meta.append(" · cân " + Math.round(e.weight_g) + " g");
+  if (e.uncertain) { const w = document.createElement("span"); w.className = "warn"; w.textContent = " · không chắc"; meta.append(w); }
+  body.append(tag, cls, meta);
+  a.append(thumb, body);
+  return a;
+}
+function render(events) {
+  const ids = events.map(e => e.event_id), firstDraw = shown === null;
+  if (shown && shown.join() === ids.join()) return;
+  const list = $("recent"), known = new Set(shown || []);
+  list.replaceChildren(...events.map(e => {
+    const li = document.createElement("li");
+    li.append(item(e, shown !== null && !known.has(e.event_id)));
+    return li;
+  }));
+  if (!events.length) { const li = document.createElement("li"); li.className = "muted"; li.textContent = "Chưa có lần nhận diện nào."; list.append(li); }
+  shown = ids;
+  if (!firstDraw) loadWeights();            // có sự kiện mới (hoặc đổi danh sách): cập nhật biểu đồ
+}
+async function pollEvents() {
   if (document.hidden) return;
   try {
-    const html = await (await fetch("/", {cache: "no-store"})).text();
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const fresh = doc.getElementById("dash");
-    if (fresh) document.getElementById("dash").innerHTML = fresh.innerHTML;
-    doc.querySelectorAll("#live [data-id]").forEach(c => {        // thiết bị mới xuất hiện sau khi mở trang
-      if (document.querySelector(`#live [data-id="${CSS.escape(c.dataset.id)}"]`)) return;
-      const card = document.importNode(c, true);
-      document.getElementById("live-empty")?.remove();
-      document.getElementById("live").appendChild(card);
-      setupCard(card);
-    });
+    render(await (await fetch(`/api/events?limit=30&device=${encodeURIComponent(dev)}`, {cache: "no-store"})).json());
   } catch (e) { /* mất mạng tạm thời: lần sau thử lại */ }
 }
-setInterval(refresh, 5000);
+
+// ---------- biểu đồ khối lượng theo lần nhận diện ----------
+const plot = $("plot"), NS = "http://www.w3.org/2000/svg";
+let wHours = 24, wData = [], sel = -1;
+try { wHours = +localStorage.getItem("wHours") || 24; } catch (e) {}
+const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent && parent.append(n); return n; };
+const pad2 = n => String(n).padStart(2, "0");
+const fmtDay = d => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`;
+const fmtHM = d => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+function niceStep(max, n) { const raw = max / n, p = 10 ** Math.floor(Math.log10(raw)); return [1, 2, 5, 10].map(m => m * p).find(s => s >= raw); }
+const T_STEPS = [10, 30, 60, 120, 180, 360, 720, 1440, 2880].map(m => m * 60000);
+
+function drawChart() {
+  plot.replaceChildren();
+  if (!wData.length) {
+    const e = document.createElement("div"); e.className = "empty muted";
+    e.textContent = "Chưa có số liệu khối lượng trong khoảng này (chưa có lần nhận diện, hoặc cân chưa hiệu chuẩn).";
+    plot.append(e); return;
+  }
+  const W = plot.clientWidth || 600, H = plot.clientHeight, m = {l: 40, r: 18, t: 14, b: 26};
+  const w = W - m.l - m.r, h = H - m.t - m.b;
+  const x1 = Date.now(), x0 = x1 - wHours * 3600e3;
+  const ymaxData = Math.max(...wData.map(d => d.grams), 1), ys = niceStep(ymaxData, 4), y1 = Math.ceil(ymaxData / ys) * ys;
+  const X = t => m.l + (t - x0) / (x1 - x0) * w, Y = g => m.t + h - g / y1 * h;
+  const svg = mk("svg", {viewBox: `0 0 ${W} ${H}`, "aria-hidden": "true"}, plot);
+  const css = getComputedStyle(plot), line = "#e5e7eb", muted = "#6b7280", surface = "#ffffff", series = css.getPropertyValue("--series-1") || "#257de0";
+  for (let g = 0; g <= y1 + 1e-9; g += ys) {                       // lưới ngang + nhãn trục Y (số nguyên)
+    mk("line", {x1: m.l, x2: W - m.r, y1: Y(g), y2: Y(g), stroke: line, "stroke-width": 1}, svg);
+    const t = mk("text", {x: m.l - 6, y: Y(g) + 4, "text-anchor": "end", "font-size": 11, fill: muted}, svg); t.textContent = Math.round(g);
+  }
+  const step = T_STEPS.find(s => (x1 - x0) / s <= 6) || T_STEPS.at(-1), off = -new Date().getTimezoneOffset() * 60000;
+  for (let t = Math.ceil((x0 + off) / step) * step - off; t <= x1; t += step) {   // nhãn trục X, đặt ở giờ tròn
+    const d = new Date(t), label = wHours <= 24 ? fmtHM(d) : fmtDay(d);
+    const tx = mk("text", {x: X(t), y: H - 6, "text-anchor": "middle", "font-size": 11, fill: muted}, svg); tx.textContent = label;
+  }
+  const pts = wData.map(d => [X(Date.parse(d.ts)), Y(d.grams)]);
+  mk("path", {d: "M" + pts.map(p => p.map(v => v.toFixed(1)).join(",")).join("L"), fill: "none", stroke: series, "stroke-width": 2,
+              "stroke-linejoin": "round", "stroke-linecap": "round"}, svg);
+  const dense = pts.length > 80;
+  pts.forEach(([px, py], i) => { if (!dense || i === pts.length - 1) mk("circle", {cx: px, cy: py, r: 4, fill: series, stroke: surface, "stroke-width": 2}, svg); });
+  const [lx, ly] = pts.at(-1), lt = mk("text", {x: lx, y: ly - 10, "text-anchor": lx > W - 60 ? "end" : "middle", "font-size": 12, "font-weight": 600, fill: "#1d2330"}, svg);
+  lt.textContent = Math.round(wData.at(-1).grams) + " g";            // nhãn trực tiếp chỉ ở điểm cuối
+  const cross = mk("line", {y1: m.t, y2: m.t + h, stroke: muted, "stroke-width": 1, visibility: "hidden"}, svg);
+  const dot = mk("circle", {r: 5, fill: series, stroke: surface, "stroke-width": 2, visibility: "hidden"}, svg);
+  const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; plot.append(tip);
+  plot._ctx = {pts, cross, dot, tip, W, m};
+  select(sel);
+}
+function select(i) {
+  const c = plot._ctx; if (!c) return;
+  sel = i;
+  if (i < 0 || i >= wData.length) { c.cross.setAttribute("visibility", "hidden"); c.dot.setAttribute("visibility", "hidden"); c.tip.hidden = true; return; }
+  const d = wData[i], [px, py] = c.pts[i];
+  c.cross.setAttribute("x1", px); c.cross.setAttribute("x2", px); c.cross.setAttribute("visibility", "visible");
+  c.dot.setAttribute("cx", px); c.dot.setAttribute("cy", py); c.dot.setAttribute("visibility", "visible");
+  const when = new Date(d.ts);
+  c.tip.replaceChildren();
+  const v = document.createElement("div"), key = document.createElement("span"), st = document.createElement("strong");
+  key.className = "key"; st.textContent = Math.round(d.grams) + " g"; v.append(key, st);
+  const s = document.createElement("div"); s.className = "muted";
+  s.textContent = `${d.cls || "—"}${d.bin_name ? " → " + d.bin_name : ""}`;
+  const t = document.createElement("div"); t.className = "muted"; t.textContent = `${fmtDay(when)} ${fmtHM(when)}:${pad2(when.getSeconds())}`;
+  c.tip.append(v, s, t); c.tip.hidden = false;
+  const tw = c.tip.offsetWidth;
+  c.tip.style.left = Math.max(0, Math.min(px + 12 > c.W - tw ? px - tw - 12 : px + 12, c.W - tw)) + "px";
+  c.tip.style.top = Math.max(0, py - 20) + "px";
+}
+function nearest(clientX) {
+  const c = plot._ctx; if (!c) return -1;
+  const x = clientX - plot.getBoundingClientRect().left;
+  let best = -1, bd = 1e9; c.pts.forEach(([px], i) => { const d = Math.abs(px - x); if (d < bd) { bd = d; best = i; } });
+  return best;
+}
+plot.addEventListener("pointermove", e => select(nearest(e.clientX)));
+plot.addEventListener("pointerleave", () => { if (document.activeElement !== plot) select(-1); });
+plot.addEventListener("blur", () => select(-1));
+plot.addEventListener("keydown", e => {
+  if (!wData.length) return;
+  if (e.key === "ArrowLeft") select(sel < 0 ? wData.length - 1 : Math.max(0, sel - 1));
+  else if (e.key === "ArrowRight") select(sel < 0 ? wData.length - 1 : Math.min(wData.length - 1, sel + 1));
+  else if (e.key === "Escape") select(-1); else return;
+  e.preventDefault();
+});
+new ResizeObserver(() => drawChart()).observe(plot);
+
+function fillTable() {
+  const rows = wData.slice(-200).reverse().map(d => {
+    const tr = document.createElement("tr"), when = new Date(d.ts);
+    [`${fmtDay(when)} ${fmtHM(when)}:${pad2(when.getSeconds())}`, d.cls || "—", d.bin_name || "—", Math.round(d.grams) + " g"]
+      .forEach(txt => { const td = document.createElement("td"); td.textContent = txt; tr.append(td); });
+    return tr;
+  });
+  $("wtable").replaceChildren(...rows);
+}
+async function loadWeights() {
+  if (document.hidden) return;
+  try {
+    wData = await (await fetch(`/api/weights?hours=${wHours}&device=${encodeURIComponent(dev)}`, {cache: "no-store"})).json();
+    sel = -1; drawChart(); fillTable();
+  } catch (e) { /* lần sau thử lại */ }
+}
+document.querySelectorAll("#wchart [data-h]").forEach(b => {
+  const sync = () => b.setAttribute("aria-pressed", String(+b.dataset.h === wHours));
+  sync();
+  b.onclick = () => {
+    wHours = +b.dataset.h; try { localStorage.setItem("wHours", wHours); } catch (e) {}
+    document.querySelectorAll("#wchart [data-h]").forEach(x => x.setAttribute("aria-pressed", String(+x.dataset.h === wHours)));
+    loadWeights();
+  };
+});
+loadWeights(); setInterval(loadWeights, 60000);               // thêm điểm mới do pollEvents gọi lại khi có sự kiện mới
+
+render({{ events | tojson }});
+setInterval(pollEvents, 2000);
+document.addEventListener("visibilitychange", pollEvents);
 </script>
+{% endif %}
 {% endblock %}

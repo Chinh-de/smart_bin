@@ -25,6 +25,7 @@
       <tr><td>Thời gian</td><td>{{ e.ts }}</td></tr>
       <tr><td>Thiết bị</td><td>{{ e.device_id }}</td></tr>
       <tr><td>Khoảng cách</td><td>{{ e.distance_cm }} cm</td></tr>
+      <tr><td>Cân lúc ghi</td><td>{{ (e.weight_g | round | int ~ ' g') if e.weight_g is not none else '—' }}</td></tr>
       <tr><td>Suy luận / tổng</td><td>{{ e.inference_ms }} ms / {{ e.total_ms }} ms</td></tr>
       <tr><td>Model</td><td>{{ e.model }}</td></tr>
       <tr><td>Mã sự kiện</td><td class="muted">{{ e.event_id }}</td></tr>

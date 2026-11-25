@@ -145,7 +145,7 @@ Ngoài ra Pi gửi **heartbeat** mỗi 30 s (`POST /api/heartbeat`: device_id, u
 
 | Trang | Nội dung |
 |---|---|
-| `/` Tổng quan | Trạng thái thiết bị (online/offline, lần cuối thấy), số rác hôm nay theo thùng, 10 sự kiện mới nhất có ảnh thu nhỏ, tự làm mới 5 s |
+| `/` Tổng quan | Video trực tiếp, số cân, số siêu âm (cập nhật 1 s); sidebar danh sách nhận diện mới nhất có ảnh thu nhỏ (cập nhật 2 s) |
 | `/events` Lịch sử | Bảng có lọc theo thùng/lớp/ngày; bấm vào xem ảnh lớn + top-3 |
 | `/stats` Thống kê | Biểu đồ số lượng theo lớp, theo thùng, theo giờ; tỉ lệ từ chối; thời gian suy luận trung bình |
 

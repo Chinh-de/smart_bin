@@ -1,17 +1,15 @@
 """Đồng bộ với web server mỗi giây (POST /api/sync/<device_id>):
-- đẩy log mới (LogBuffer gom các dòng log của chương trình) lên trang /logs;
+- báo khoảng cách siêu âm hiện tại để trang chủ hiện cạnh video và số cân;
 - báo danh sách thông số chỉnh được + giá trị hiện tại cho trang /config;
 - nhận cấu hình mới từ web: kiểm tra, áp dụng NGAY lúc đang chạy (sửa thẳng vào dict cấu hình dùng chung),
   lưu vào config/local.json (không commit, đè lên hardware.json / bins.json lúc khởi động, xem
   smartbin.load_config), rồi báo kết quả lại cho web. File gốc trong git không bao giờ bị sửa;
 - nhận lệnh thử servo (thả vào thùng N / về nghỉ), controller chạy khi đang rảnh.
-Mất mạng: log giữ tối đa LOG_KEEP dòng mới nhất, có mạng gửi bù."""
+Log của chương trình KHÔNG đẩy lên web (xem logs/app.log hoặc journalctl trên Pi)."""
 import json
 import logging
 import os
 import threading
-import time
-from collections import deque
 from pathlib import Path
 
 import requests
@@ -20,41 +18,8 @@ from smartbin import LOCAL_FILE, ROOT
 from smartbin.servo import EASINGS, MOVE_MS_RANGE, validate as validate_servo
 
 log = logging.getLogger(__name__)
-LOG_KEEP = 2000
-LOG_BATCH = 300
 SYNC_S = 1.0
 RETRY_S = 5.0
-QUIET_LOGGERS = ("urllib3", "requests")    # log của chính việc gửi: không đẩy lên, tránh vòng lặp
-
-
-class LogBuffer(logging.Handler):
-    """Gom log vào hàng đợi trong RAM để luồng Remote gửi lên server."""
-
-    def __init__(self, maxlen=LOG_KEEP):
-        super().__init__(logging.DEBUG)
-        self.buf = deque(maxlen=maxlen)
-        self.dropped = 0
-        self.setFormatter(logging.Formatter("%(message)s"))
-
-    def emit(self, record):
-        if record.name.startswith(QUIET_LOGGERS):
-            return
-        try:
-            if len(self.buf) == self.buf.maxlen:
-                self.dropped += 1
-            self.buf.append({"ts": record.created, "level": record.levelname, "name": record.name,
-                             "msg": self.format(record)[:4000]})
-        except Exception:
-            self.handleError(record)
-
-    def take(self, n):
-        out = []
-        while self.buf and len(out) < n:
-            out.append(self.buf.popleft())
-        return out
-
-    def put_back(self, items):
-        self.buf.extendleft(reversed(items))
 
 
 def _num(lo, hi, step, integer=False):
@@ -96,14 +61,15 @@ BASE_FIELDS = [
 
 
 class Remote:
-    def __init__(self, server_url, api_key, device_id, logbuf, servo_cfg, hw, decider, config_dir,
+    def __init__(self, server_url, api_key, device_id, sensor, servo_cfg, hw, decider, config_dir,
                  on_command=None):
-        """servo_cfg, hw: dict cấu hình ĐANG DÙNG (cùng object với PanTilt.cfg, Controller.hw);
+        """sensor: cảm biến siêu âm (đọc khoảng cách để báo lên web);
+        servo_cfg, hw: dict cấu hình ĐANG DÙNG (cùng object với PanTilt.cfg, Controller.hw);
         decider: Decider (bins + ngưỡng); on_command(cmd): đẩy lệnh thử servo cho controller."""
         self.url = f"{server_url.rstrip('/')}/api/sync/{device_id}"
         self.http = requests.Session()
         self.http.headers["X-API-Key"] = api_key
-        self.logbuf = logbuf
+        self.sensor = sensor
         self.servo, self.hw, self.decider = servo_cfg, hw, decider
         self.cfg_dir = ROOT / config_dir
         self.on_command = on_command
@@ -210,21 +176,25 @@ class Remote:
         os.replace(tmp, path)          # ghi nguyên tử: mất điện giữa chừng không hỏng file cấu hình
 
     # ---------- đồng bộ ----------
+    def _distance(self):
+        """Khoảng cách siêu âm (cm) để hiện trên web; None nếu chưa đo được. Không đụng tới log/cảnh báo
+        của luồng điều khiển (peek_cm không in gì)."""
+        try:
+            read = getattr(self.sensor, "peek_cm", None) or self.sensor.distance_cm
+            d = read()
+            return round(d, 1) if d is not None else None
+        except Exception:
+            return None
+
     def _sync_once(self):
-        logs = self.logbuf.take(LOG_BATCH) if self.logbuf else []
-        body = {"logs": logs}
+        body = {"distance_cm": self._distance()}
         if self.send_config:
             body["config"] = {"fields": self.fields, "values": self.values()}
         if self.result:
             body["result"] = self.result
-        try:
-            r = self.http.post(self.url, json=body, timeout=5)
-            r.raise_for_status()
-            resp = r.json()
-        except Exception:
-            if self.logbuf:
-                self.logbuf.put_back(logs)
-            raise
+        r = self.http.post(self.url, json=body, timeout=5)
+        r.raise_for_status()
+        resp = r.json()
         if "config" in body:
             self.send_config = False
         if body.get("result") is self.result:
@@ -246,26 +216,25 @@ class Remote:
         for cmd in resp.get("commands") or []:
             if self.on_command:
                 self.on_command(cmd)
-        return bool(self.logbuf and self.logbuf.buf)
 
     def _loop(self):
         ok_before = None
         while not self._stop.is_set():
             try:
-                more = self._sync_once()
+                self._sync_once()
                 ok, why = True, ""
             except requests.HTTPError as e:
                 code = e.response.status_code if e.response is not None else "?"
-                ok, more, why = False, False, f"HTTP {code}" + (" (sai api_key?)" if code == 401 else "")
+                ok, why = False, f"HTTP {code}" + (" (sai api_key?)" if code == 401 else "")
             except Exception as e:      # luồng đồng bộ không được chết vì lỗi bất kỳ
-                ok, more, why = False, False, type(e).__name__
+                ok, why = False, type(e).__name__
             if ok != ok_before:
                 if not ok:
-                    log.warning("Đồng bộ log/cấu hình với server lỗi: %s", why)
+                    log.warning("Đồng bộ cấu hình với server lỗi: %s", why)
                 elif ok_before is False:
-                    log.info("Đồng bộ log/cấu hình: đã kết nối lại server")
+                    log.info("Đồng bộ cấu hình: đã kết nối lại server")
                 ok_before = ok
-            self._stop.wait(0.05 if more else (SYNC_S if ok else RETRY_S))
+            self._stop.wait(SYNC_S if ok else RETRY_S)
 
     def close(self):
         self._stop.set()

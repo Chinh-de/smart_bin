@@ -25,7 +25,6 @@
     {% for i in ids %}<option {{ 'selected' if i == device }}>{{ i }}</option>{% endfor %}
   </select>
   <span class="muted"><span class="dot off-dot" id="dot"></span><span id="state">Đang nối…</span></span>
-  <a href="/logs?device={{ device | urlencode }}" style="margin-left:auto;">Xem log →</a>
 </div>
 
 <h2>Thử servo</h2>
@@ -167,7 +166,7 @@ async function command(c) {
     const r = await fetch(`/api/command/${encodeURIComponent(dev)}`, {method: "POST",
       headers: {"Content-Type": "application/json"}, body: JSON.stringify(c)});
     const j = await r.json();
-    setMsg(r.ok ? "Đã gửi lệnh thử servo, xem kết quả ở trang Log" : (j.error || "Lỗi"), r.ok ? "ok" : "err");
+    setMsg(r.ok ? "Đã gửi lệnh thử servo, xem Pi chạy lệnh (log xem trên Pi: logs/app.log)" : (j.error || "Lỗi"), r.ok ? "ok" : "err");
   } catch (err) { setMsg("Không gửi được: " + err, "err"); }
 }
 document.querySelector('[data-cmd="home"]').onclick = () => command({cmd: "home"});

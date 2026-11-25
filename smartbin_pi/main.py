@@ -60,7 +60,7 @@ def main():
                     help="in khoảng cách siêu âm mỗi lần đọc (mặc định ~1 s/lần, hardware.json -> distance_log_s)")
     ap.add_argument("--no-scale", action="store_true", help="không đọc cân load cell")
     ap.add_argument("--no-remote", action="store_true",
-                    help="không đẩy log lên web / không nhận cấu hình, lệnh thử servo từ web")
+                    help="không báo siêu âm lên web / không nhận cấu hình, lệnh thử servo từ web")
     ap.add_argument("--config", default="config")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -71,12 +71,6 @@ def main():
     app, hw = cfg["app"], cfg["hw"]
     setup_logging(ROOT, args.verbose)
     log = logging.getLogger("main")
-    logbuf = None
-    if not (args.no_upload or args.no_remote):
-        from smartbin.remote import LogBuffer
-        logbuf = LogBuffer()        # gắn sớm để log khởi động (servo, model) cũng lên trang /logs
-        logbuf.setLevel(logging.DEBUG if args.verbose else logging.INFO)
-        logging.getLogger().addHandler(logbuf)
 
     model, labels = ROOT / app["model"], ROOT / app["labels"]
     if model.exists():
@@ -165,9 +159,9 @@ def main():
     if args.show_distance:
         ctl.distance_log_s = hw["poll_ms"] / 1000
     remote = None
-    if logbuf:
+    if not (args.no_upload or args.no_remote):
         from smartbin.remote import Remote
-        remote = Remote(app["server_url"], app["api_key"], app["device_id"], logbuf, hw["servo"], ctl.hw,
+        remote = Remote(app["server_url"], app["api_key"], app["device_id"], sensor, hw["servo"], ctl.hw,
                         decider, args.config,
                         on_command=lambda c: scale.command(c) if scale and str(c.get("cmd", "")).startswith("scale_")
                         else ctl.command(c))

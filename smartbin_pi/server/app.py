@@ -1,8 +1,9 @@
-"""Web server lưu log thùng rác: nhận sự kiện + ảnh từ Pi, hiển thị lịch sử và thống kê,
-xem log trực tiếp của Pi (/logs), chỉnh thông số servo/cảm biến và chạy thử servo (/config).
+"""Web server thùng rác: nhận sự kiện + ảnh từ Pi, trang chủ xem video trực tiếp + số cân + số siêu âm
++ danh sách nhận diện mới nhất, lịch sử và thống kê, chỉnh thông số servo/cảm biến và chạy thử servo (/config).
 
     python server/app.py              # chạy ở 0.0.0.0:5000, xem từ điện thoại cùng WiFi
-Biến môi trường: SMARTBIN_API_KEY (mặc định "change-me", phải khớp config/app.json), SMARTBIN_PORT.
+Biến môi trường: SMARTBIN_API_KEY (mặc định "change-me", phải khớp config/app.json), SMARTBIN_PORT,
+SMARTBIN_DATA (thư mục chứa smartbin.db + uploads/, mặc định là thư mục server/; dùng với seed.py để thử).
 """
 import json
 import os
@@ -10,8 +11,7 @@ import re
 import threading
 import time
 import uuid
-from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from flask import Flask, Response, abort, g, jsonify, render_template, request, send_from_directory
@@ -19,8 +19,9 @@ from flask import Flask, Response, abort, g, jsonify, render_template, request, 
 import db
 
 BASE = Path(__file__).resolve().parent
-UPLOADS = BASE / "uploads"
-DB_PATH = BASE / "smartbin.db"
+DATA = Path(os.environ.get("SMARTBIN_DATA") or BASE).resolve()
+UPLOADS = DATA / "uploads"
+DB_PATH = DATA / "smartbin.db"
 API_KEY = os.environ.get("SMARTBIN_API_KEY", "change-me")
 OFFLINE_AFTER_S = 90          # 3 nhịp heartbeat
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
@@ -63,6 +64,29 @@ def touch_device(con, device_id, info=None):
 
 
 # ---------------- API ----------------
+def event_age_s(ts):
+    """Sự kiện cách bây giờ bao nhiêu giây (theo giờ ghi trên thiết bị); None nếu không đọc được."""
+    try:
+        t = datetime.fromisoformat(ts)
+    except ValueError:
+        return None
+    return (datetime.now(t.tzinfo) - t).total_seconds()
+
+
+def weight_for_event(device_id, ts):
+    """Số cân (gram, nguyên) để ghi kèm sự kiện. Cân nằm trong một thùng nên chỉ đo được khi rác đã rơi vào; Pi chỉ
+    gửi sự kiện SAU khi thả xong, nên lấy số cân hiện tại là đúng lúc. Bỏ qua (None) khi:
+    - sự kiện cũ (Pi gửi bù sau khi mất mạng): số cân bây giờ không còn ứng với lúc đó;
+    - cân không gửi số mới gần đây, lỗi, hoặc chưa hiệu chuẩn (số thô không phải gram)."""
+    age = event_age_s(ts)
+    if age is None or abs(age) > EVENT_WEIGHT_MAX_AGE_S:
+        return None
+    w = weight_of(device_id)
+    if not w or not w.get("calibrated") or w.get("grams") is None:
+        return None
+    return round(w["grams"])
+
+
 @app.post("/api/events")
 def api_add_event():
     require_key()
@@ -89,16 +113,20 @@ def api_add_event():
         f.save(day_dir / f"{event_id}.jpg")
         rel = f"{ts[:10]}/{event_id}.jpg"
 
-    con.execute("""INSERT INTO events VALUES (:event_id, :device_id, :ts, :result, :bin_id, :bin_name, :message,
+    w = weight_for_event(device_id, ts)
+    con.execute("""INSERT INTO events (event_id, device_id, ts, result, bin_id, bin_name, message, top_class, top_prob,
+                   top3, bin_probs, uncertain, distance_cm, inference_ms, total_ms, model, image_path, received_at,
+                   weight_g)
+                   VALUES (:event_id, :device_id, :ts, :result, :bin_id, :bin_name, :message,
                    :top_class, :top_prob, :top3, :bin_probs, :uncertain, :distance_cm, :inference_ms, :total_ms,
-                   :model, :image_path, :received_at)""", {
+                   :model, :image_path, :received_at, :weight_g)""", {
         "event_id": event_id, "device_id": device_id, "ts": ts, "result": m.get("result", "BIN"),
         "bin_id": m.get("bin_id"), "bin_name": m.get("bin_name"), "message": m.get("message"),
         "top_class": m.get("top_class"), "top_prob": m.get("top_prob"),
         "top3": json.dumps(m.get("top3")), "bin_probs": json.dumps(m.get("bin_probs")),
         "uncertain": int(bool(m.get("uncertain"))), "distance_cm": m.get("distance_cm"),
         "inference_ms": m.get("inference_ms"), "total_ms": m.get("total_ms"), "model": m.get("model"),
-        "image_path": rel, "received_at": now_iso(),
+        "image_path": rel, "received_at": now_iso(), "weight_g": w,
     })
     touch_device(con, device_id)
     con.commit()
@@ -117,8 +145,10 @@ def api_heartbeat():
     return jsonify(status="ok")
 
 
-def query_events(limit=50, bin_id=None, cls=None, date=None, result=None):
+def query_events(limit=50, bin_id=None, cls=None, date=None, result=None, device=None):
     sql, args = "SELECT * FROM events WHERE 1=1", []
+    if device:
+        sql += " AND device_id = ?"; args.append(device)
     if bin_id:
         sql += " AND bin_id = ?"; args.append(bin_id)
     if cls:
@@ -134,12 +164,27 @@ def query_events(limit=50, bin_id=None, cls=None, date=None, result=None):
 def filters_from_request():
     a = request.args
     return dict(limit=max(1, min(a.get("limit", 100, type=int), 1000)), bin_id=a.get("bin", type=int),
-                cls=a.get("class") or None, date=a.get("date") or None, result=a.get("result") or None)
+                cls=a.get("class") or None, date=a.get("date") or None, result=a.get("result") or None,
+                device=a.get("device") or None)
 
 
 @app.get("/api/events")
 def api_events():
     return jsonify(query_events(**filters_from_request()))
+
+
+@app.get("/api/weights")
+def api_weights():
+    """Khối lượng ghi kèm mỗi sự kiện nhận diện (cũ -> mới), cho biểu đồ ở trang chủ."""
+    a = request.args
+    hours = max(0.1, min(a.get("hours", 24, type=float), 24 * 90))
+    since = (datetime.now().astimezone() - timedelta(hours=hours)).isoformat(timespec="seconds")
+    sql, args = ("""SELECT event_id, ts, weight_g AS grams, top_class AS cls, bin_id, bin_name, result FROM events
+                    WHERE weight_g IS NOT NULL AND ts >= ?""", [since])
+    if a.get("device"):
+        sql += " AND device_id = ?"; args.append(a["device"])
+    rows = get_db().execute(sql + " ORDER BY ts DESC LIMIT 2000", args).fetchall()
+    return jsonify([dict(r) for r in reversed(rows)])
 
 
 def compute_stats(date=None):
@@ -222,6 +267,7 @@ def api_stream_want(device_id):
 # Pi đẩy số gram mới nhất mỗi giây; chỉ giữ trong RAM, hiện cạnh video.
 WEIGHTS = {}            # device_id -> {"grams", "calibrated", "error", "ts"}
 WEIGHT_STALE_S = 5
+EVENT_WEIGHT_MAX_AGE_S = 60     # sự kiện cũ hơn ngần này giây thì không gắn số cân (xem weight_for_event)
 
 
 @app.post("/api/weight/<device_id>")
@@ -258,8 +304,12 @@ def api_stream_state():
         items = dict(STREAMS)
     out = {d: {"live": s.ts > 0 and time.time() - s.ts < STREAM_LIVE_S, "viewers": s.viewers}
            for d, s in items.items()}
-    for d in set(out) | set(WEIGHTS):
-        out.setdefault(d, {"live": False, "viewers": 0})["weight"] = weight_of(d)
+    with RT_LOCK:
+        rts = dict(RT)
+    for d in set(out) | set(WEIGHTS) | set(rts):
+        o = out.setdefault(d, {"live": False, "viewers": 0})
+        o["weight"] = weight_of(d)
+        o["distance"] = distance_of(rts.get(d))
     return jsonify(out)
 
 
@@ -296,19 +346,18 @@ def stream_mjpg(device_id):
                     headers={"Cache-Control": "no-store"})
 
 
-# ---------------- log trực tiếp + cấu hình từ xa ----------------
-# Pi gọi POST /api/sync/<id> mỗi giây (smartbin/remote.py): đẩy log, báo thông số hiện tại, nhận cấu hình
-# mới / lệnh thử servo. Chỉ giữ trong RAM: server khởi động lại thì Pi tự gửi lại thông số (need_config).
-LOG_KEEP = 5000
-LOG_PAGE = 1000
+# ---------------- cấu hình từ xa + số siêu âm ----------------
+# Pi gọi POST /api/sync/<id> mỗi giây (smartbin/remote.py): báo khoảng cách siêu âm và thông số hiện tại, nhận
+# cấu hình mới / lệnh thử servo. Chỉ giữ trong RAM: server khởi động lại thì Pi tự gửi lại thông số (need_config).
+# Log của Pi không đẩy lên web nữa.
 SYNC_ONLINE_S = 5
-LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+DISTANCE_STALE_S = 5
 
 
 class DeviceRT:
     def __init__(self):
         self.lock = threading.Lock()
-        self.logs, self.seq = deque(maxlen=LOG_KEEP), 0     # (seq, dòng log)
+        self.distance_cm, self.distance_ts = None, 0.0     # số siêu âm mới nhất Pi báo
         self.fields, self.values, self.config_ts = None, None, 0.0
         self.pending = None          # {"id", "values", "ts"}: cấu hình web gửi, Pi chưa nhận kết quả
         self.result = None           # kết quả áp dụng gần nhất do Pi báo
@@ -336,14 +385,11 @@ def api_sync(device_id):
         return jsonify(error="dữ liệu không hợp lệ hoặc quá nhiều thiết bị"), 400
     with rt.lock:
         rt.last_sync = time.time()
-        for ln in (d.get("logs") or [])[:2000]:
-            if not isinstance(ln, dict):
-                continue
-            rt.seq += 1
-            rt.logs.append((rt.seq, {
-                "ts": ln.get("ts") if isinstance(ln.get("ts"), (int, float)) else time.time(),
-                "level": ln.get("level") if ln.get("level") in LEVELS else "INFO",
-                "name": str(ln.get("name", ""))[:64], "msg": str(ln.get("msg", ""))[:4000]}))
+        dist = d.get("distance_cm")
+        if isinstance(dist, (int, float)) and not isinstance(dist, bool) and 0 <= dist < 1e5:
+            rt.distance_cm, rt.distance_ts = dist, rt.last_sync
+        elif "distance_cm" in d:                 # Pi báo chưa đo được (null)
+            rt.distance_cm = None
         c = d.get("config")
         if isinstance(c, dict) and isinstance(c.get("fields"), list) and isinstance(c.get("values"), dict):
             rt.fields, rt.values, rt.config_ts = c["fields"], c["values"], time.time()
@@ -356,19 +402,6 @@ def api_sync(device_id):
         return jsonify(need_config=rt.fields is None,
                        config={"id": rt.pending["id"], "values": rt.pending["values"]} if rt.pending else None,
                        commands=commands)
-
-
-@app.get("/api/logs/<device_id>")
-def api_logs(device_id):
-    rt = get_rt(device_id)
-    if rt is None:
-        return jsonify(seq=0, lines=[], online=False)
-    after = request.args.get("after", 0, type=int)
-    with rt.lock:
-        if after > rt.seq:            # server đã khởi động lại: trình duyệt đọc lại từ đầu
-            after = 0
-        lines = [{"seq": n, **ln} for n, ln in rt.logs if n > after][-LOG_PAGE:]
-        return jsonify(seq=rt.seq, lines=lines, online=time.time() - rt.last_sync < SYNC_ONLINE_S)
 
 
 @app.get("/api/config/<device_id>")
@@ -422,6 +455,17 @@ def api_command(device_id):
     return jsonify(status="ok")
 
 
+def distance_of(rt):
+    """Số siêu âm + ngưỡng đang dùng (để web ghi chú có vật / khay trống); None nếu Pi không báo gần đây."""
+    if rt is None:
+        return None
+    with rt.lock:
+        if rt.distance_cm is None or time.time() - rt.distance_ts > DISTANCE_STALE_S:
+            return None
+        v = rt.values or {}
+        return {"cm": rt.distance_cm, "trigger_cm": v.get("hw.trigger_cm"), "clear_cm": v.get("hw.clear_cm")}
+
+
 # ---------------- trang web ----------------
 def device_ids():
     """Thiết bị trong CSDL + thiết bị đang đồng bộ (có thể chưa gửi heartbeat)."""
@@ -431,16 +475,13 @@ def device_ids():
     return sorted(ids)
 
 
+SIDEBAR_EVENTS = 30
+
+
 def pick_device():
     ids = device_ids()
     want = request.args.get("device")
     return (want if want in ids else (ids[0] if ids else None)), ids
-
-
-@app.get("/logs")
-def page_logs():
-    dev, ids = pick_device()
-    return render_template("logs.html", device=dev, ids=ids)
 
 
 @app.get("/config")
@@ -461,9 +502,8 @@ def devices():
 
 @app.get("/")
 def page_index():
-    today = datetime.now().strftime("%Y-%m-%d")
-    return render_template("index.html", devices=devices(), stats=compute_stats(today),
-                           events=query_events(limit=12), today=today)
+    dev, ids = pick_device()
+    return render_template("index.html", device=dev, ids=ids, events=query_events(limit=SIDEBAR_EVENTS, device=dev))
 
 
 @app.get("/events")

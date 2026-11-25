@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS events (
     total_ms     REAL,
     model        TEXT,
     image_path   TEXT,
-    received_at  TEXT NOT NULL
+    received_at  TEXT NOT NULL,
+    weight_g     REAL                    -- khối lượng trên khay lúc chụp (gram), NULL nếu cân lỗi/chưa hiệu chuẩn
 );
 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
 CREATE TABLE IF NOT EXISTS devices (
@@ -35,6 +36,9 @@ def connect(path):
     con = sqlite3.connect(path)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    if "weight_g" not in {r["name"] for r in con.execute("PRAGMA table_info(events)")}:
+        con.execute("ALTER TABLE events ADD COLUMN weight_g REAL")      # CSDL tạo trước khi có cột này
+        con.commit()
     return con
 
 

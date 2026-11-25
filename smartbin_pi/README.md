@@ -5,9 +5,9 @@ Thùng rác 4 ngăn (thiết kế: `../smartbin_4thung.html`). Đặt rác lên 
 | Thùng | Loại | Lớp | Servo A (ngang) | Servo B (lật) |
 |---|---|---|---|---|
 | 1 | Giấy | paper | 45° | `tilt_rest − tilt_delta` |
-| 2 | Nhựa | plastic | 135° | `tilt_rest − tilt_delta` |
-| 3 | Rác thải | trash | 45° | `tilt_rest + tilt_delta` |
-| 4 | Khác | các lớp còn lại, **không chắc chắn** | 135° | `tilt_rest + tilt_delta` |
+| 2 | Bìa carton | cardboard | 135° | `tilt_rest − tilt_delta` |
+| 3 | Nhựa | plastic | 45° | `tilt_rest + tilt_delta` |
+| 4 | Khác | các lớp còn lại (battery, biological, clothes, glass, metal, shoes, trash), **không chắc chắn** | 135° | `tilt_rest + tilt_delta` |
 
 Đặc tả: [../docs/dac_ta_ung_dung.md](../docs/dac_ta_ung_dung.md)
 
@@ -107,22 +107,21 @@ cd ~/smartbin_pi && .venv/bin/python main.py
 
 Mở web từ điện thoại/laptop cùng WiFi: `http://<ip-của-pi>:5000` (xem IP: `hostname -I`).
 
-- **Tổng quan**: thiết bị online/offline, số rác hôm nay theo thùng, sự kiện mới nhất (tự làm mới 5 s).
+- **Tổng quan**: video trực tiếp, số cân (g), số siêu âm (cm, có ghi chú "có vật/khay trống") cập nhật mỗi giây; sidebar bên phải là danh sách nhận diện gần đây (ảnh, thùng, lớp, xác suất, giờ; tự cập nhật 2 s, mục mới nháy sáng).
 - **Lịch sử**: lọc theo thùng / kết quả / lớp / ngày, bấm vào xem ảnh lớn và xác suất.
 - **Thống kê**: theo thùng, lớp, giờ, ngày; số lần không chắc chắn, lỗi kẹt rác.
 
-- **Log**: log trực tiếp của chương trình trên Pi (lọc theo mức, theo chữ, tạm dừng).
 - **Cấu hình**: chỉnh thông số servo (easing, thời gian, góc nghỉ, biên độ lật, xung), góc từng thùng, ngưỡng siêu âm,
   ngưỡng phân loại; bấm **Lưu & áp dụng** là Pi áp dụng ngay (không cần khởi động lại) và lưu vào `config/local.json`.
   File này không commit (có trong `.gitignore`), lúc khởi động được đè lên `hardware.json` / `bins.json`, nên `git pull`
   trên Pi không bị xung đột; xoá nó để về cấu hình gốc, muốn đưa giá trị đã chỉnh vào git thì chép sang file gốc. Giá trị sai (vd góc lật ra ngoài 0..180) bị từ chối, không đổi gì. Nút **Thả thùng N** / **Về nghỉ** để
   thử servo, chỉ chạy khi Pi đang chờ vật và khay trống.
 
-Pi đồng bộ log + cấu hình với server mỗi giây (`smartbin/remote.py`, `POST /api/sync/<device_id>`); tắt bằng `--no-remote`
-(hoặc `--no-upload`). Log và cấu hình chờ áp dụng chỉ giữ trong RAM của server. Trang Cấu hình chưa có đăng nhập:
+Pi đồng bộ số siêu âm + cấu hình với server mỗi giây (`smartbin/remote.py`, `POST /api/sync/<device_id>`); tắt bằng `--no-remote`
+(hoặc `--no-upload`). Log của Pi không đẩy lên web: xem `logs/app.log` hoặc `journalctl -u smartbin -f`. Cấu hình chờ áp dụng chỉ giữ trong RAM của server. Trang Cấu hình chưa có đăng nhập:
 ai vào được server đều chỉnh được thông số và chạy thử servo.
 
-API cho phần mở rộng: `GET /api/events`, `GET /api/stats`, `GET /api/logs/<device_id>?after=<seq>`, `GET/POST /api/config/<device_id>`.
+API cho phần mở rộng: `GET /api/events`, `GET /api/stats`, `GET /api/stream/state` (video/cân/siêu âm hiện tại), `GET/POST /api/config/<device_id>`.
 
 ## 5. Tự khởi động khi bật nguồn
 
@@ -143,6 +142,16 @@ python server/app.py
 python main.py --mock --images thu_muc_anh/
 ```
 
+**Thử web với dữ liệu giả** (không đụng `server/smartbin.db` thật):
+
+```bash
+cd server
+python seed.py                          # tạo server/dev_data/ (60 sự kiện + ảnh); --n, --days, --seed, --scale-bin
+SMARTBIN_DATA=dev_data python app.py    # chạy server trên dữ liệu giả
+```
+
+Có thể chạy thêm `python main.py --mock --images <thư mục ảnh> --config <bản sao config trỏ server_url vào server thử>` để có video/cân/siêu âm giả.
+
 Nhấn **Enter** = đặt / lấy vật trên khay; mỗi lần "chụp" lấy 1 ảnh trong thư mục; servo, đèn, còi in ra màn hình.
 Trên Pi thật, thêm `--keyboard` để nhấn **Enter** chạy nhận diện ngay (ngoài siêu âm), tiện test khi chưa gắn hoặc chưa chỉnh cảm biến:
 `python main.py --keyboard --no-upload`. Enter bấm lúc đang xử lý sẽ bị bỏ, không dồn thành lượt sau.
@@ -153,7 +162,9 @@ Chưa nối siêu âm/servo mà chỉ muốn thử nhận diện bằng webcam t
 
 **Cân:** `main.py` đọc load cell HX711 (chân `hx711_dt`/`hx711_sck`) ở luồng nền, đổi ra gram theo `config/loadcell.json`
 (tạo bằng `tools/loadcell_test.py`: `t` rồi `c <gram>`), gửi lên server mỗi giây; trang chủ hiện số gram cạnh video.
-Cân lỗi/chưa nối thì thùng rác vẫn chạy bình thường. Tắt bằng `--no-scale`. Không chạy `loadcell_test.py` cùng lúc với `main.py`.
+Cân lỗi/chưa nối thì thùng rác vẫn chạy bình thường.
+Cân nằm trong một thùng nên chỉ đo được sau khi rác đã rơi vào. Pi không đo lúc chụp: chỉ gửi số gram mỗi giây, còn **server** khi nhận sự kiện nhận diện (Pi gửi sau khi thả xong) thì lưu số cân hiện tại vào cột `weight_g` (gram, làm tròn) để vẽ biểu đồ ở trang chủ.
+Không lưu (để trống) nếu cân chưa hiệu chuẩn, đang lỗi, quá 5 s chưa có số mới, hoặc sự kiện cũ hơn 60 s (Pi gửi bù sau khi mất mạng; chỉnh `EVENT_WEIGHT_MAX_AGE_S` trong `server/app.py`). Tắt bằng `--no-scale`. Không chạy `loadcell_test.py` cùng lúc với `main.py`.
 
 **Video trực tiếp:** xem ngay ở trang chủ `http://<ip server>:5000/`. Pi đẩy từng khung JPEG lên server (`smartbin/streamer.py`),
 server phát lại dạng MJPEG. Pi chỉ mã hoá + gửi khi có người đang xem. Chỉnh trong `config/app.json`, mục `stream`

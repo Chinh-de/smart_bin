@@ -136,6 +136,12 @@ class UltrasonicSensor:
                         "cầu chia áp ở ECHO, hoặc vật mềm/nghiêng hút sóng); bận = ECHO kẹt mức cao.")
         return self.NO_DATA_CM
 
+    def peek_cm(self):
+        """Trung vị các lần đo hợp lệ gần đây (None nếu không có) để HIỂN THỊ: chỉ đọc, không in cảnh báo,
+        không áp dụng lost_as_object -> luồng khác (đồng bộ lên web) gọi được mà không ảnh hưởng điều khiển."""
+        vals = [cm for _, cm, _ in self.recent() if cm is not None]
+        return statistics.median(vals) if vals else None
+
     @staticmethod
     def describe(pings):
         """Chuỗi log các lần ping: '30.2 30.4 mất 30.1 ngắn' (cũ trước)."""
