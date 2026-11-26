@@ -1,8 +1,8 @@
 {
   "bins": [
     {"id": 1, "name": "Giấy",       "pan": 45,  "tilt_dir": -1, "classes": ["paper"]},
-    {"id": 2, "name": "Nhựa", "pan": 135, "tilt_dir": -1, "classes": ["plastic"]},
-    {"id": 3, "name": "Bìa carton",       "pan": 45,  "tilt_dir": 1,  "classes": ["cardboard"]},
+    {"id": 2, "name": "Bìa carton", "pan": 135, "tilt_dir": -1, "classes": ["cardboard"]},
+    {"id": 3, "name": "Nhựa",       "pan": 45,  "tilt_dir": 1,  "classes": ["plastic"]},
     {"id": 4, "name": "Khác",       "pan": 135, "tilt_dir": 1,
      "classes": ["battery", "biological", "clothes", "glass", "metal", "shoes", "trash"]}
   ],
